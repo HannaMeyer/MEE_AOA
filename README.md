@@ -1,2 +1,3 @@
-# AOA_CaseStudy
-Case study material for the paper on mapping the area of applicability
+# Area of Applicability of spatial prediction models
+Case study material for the paper on mapping the area of applicability.
+The case study described in the paper can be reproduced using the "CaseStudy.Rmd" in the src folder. "Concept_figures.R" creates the conceptual figures used in the paper. "CaseStudy_diffScenarios" was used to compare the AOAI/AOA for different scenarios of response variable, sample size and random seed. The script was run on a HPC system. The results are stored in "data/". "Comparison_diffScenarios.R" can be used to analyse the result for these data and create the figures used in the paper.
