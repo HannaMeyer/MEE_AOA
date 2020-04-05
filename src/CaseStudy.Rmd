@@ -38,6 +38,7 @@ The settings specified here are used for the case study published in the paper. 
 
 
 ```{r settings}
+cores <- detectCores()-1 # Run computations in parallel?! If not set to 1
 npoints <- 50 # number of training samples
 clustered <- FALSE #TRUE clustered design
 nlusters <- 25 #number of clusters if design=clustered
@@ -196,7 +197,7 @@ if(clustered){
   clstr <- NULL
   }
 
-cl <- makeCluster(detectCores()-1)
+cl <- makeCluster(cores)
 #with variable weighting:
 AOA <- aoa(trainDat,predictors, variables = names(predictors),model=model,cl=cl,clstr=clstr)
 #without weighting:
