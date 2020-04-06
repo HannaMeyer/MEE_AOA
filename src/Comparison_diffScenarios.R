@@ -1,7 +1,7 @@
 rm(list=ls())
 library(ggplot2)
 library(reshape2)
-dat <- get(load("../data/resultsTable_small.RData"))
+dat <- get(load("../data/resultsTable.RData"))
 
 means=as.data.frame(matrix(unlist(dat$meansPCA),ncol=2,byrow = T))
 sds=as.data.frame(matrix(unlist(dat$sdPCA),ncol=2,byrow = T))
