@@ -1,4 +1,4 @@
-
+## This script creates figures used to visualize the methodology
 rm(list=ls())
 #install_github("HannaMeyer/CAST")
 library(CAST)
@@ -40,8 +40,6 @@ for (i in 1:nrow(samples[1:30,1:3])){
   }
   tmp <- mindist
 }
-
-
 
 colors <- c("grey", "black")
 colors <- colors[as.numeric(factor(samples$type))]
