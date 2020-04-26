@@ -5,6 +5,7 @@ library(CAST)
 library(knitr)
 library(scatterplot3d)
 library(ggplot2)
+library(randomForest)
 
 ################################################################################
 # Figure 3d scatter
@@ -81,47 +82,156 @@ uncert <- aoa(samples[1:30,],samples[31,],variables=c("a","b","c"))
 
 print(attributes(uncert))
 cat(paste0("average mean distance in the training data = ",round(attributes(uncert)$aoa_stats$AvrgMean_train,3),
-           ", \ndAverage min distance in the training data = ",round(attributes(uncert)$aoa_stats$AvrgMin_train,3),
-           ", \ndSD of min distance in the training data = ",round(attributes(uncert)$aoa_stats$SdMin_train,3),
-           ", \nthreshold = ",round(attributes(uncert)$aoa_stats$threshold,3),
+            ", \nthreshold = ",round(attributes(uncert)$aoa_stats$threshold,3),
            ", \ndistance to nearest training point = ",round(mindist,3),
-           ", \nAOAI for the new data point = ",round(unlist(uncert$AOAI),3)))
+           ", \nDI for the new data point = ",round(unlist(uncert$DI),3)))
+
+
+
+################################################################################
+# Relationship predictor, response, prediction intervals
+################################################################################
+
+f = function(x, z = 0.8, b = 0, e = 0.3) {
+  z * x+ b + rnorm(length(x)) * e
+}
+set.seed(131)
+x = sort(runif(30, 0.7, 1.2))
+y = f(x, z = 1)
+m = lm(y~x)
+x_new = seq(0,2.2,length.out=100)
+newdata = data.frame(x = x_new, true = f(x_new, z = 1, e = 0))
+p = predict(m, newdata, interval = "prediction")
+ylim = range(p)
+ylim = c(min(newdata$true),max(newdata$true))
+xlim = c(0.1,2.1)
+xlab = "predictor"
+ylab = "response"
+
+pdf("../figures/fig1.pdf",width=10,height=5)
+par(mfrow = c(1, 2))
+par(mar = c(5.1, 4.1, 2.1, 0.1))
+plot(y~x, xlim = xlim, ylim = ylim, xlab = xlab, ylab = ylab,pch=16)
+newdata = cbind(newdata, p)
+lines(true~x, newdata, col = 'green')
+lines(fit~x, newdata, col = 'black')
+lines(lwr~x, newdata, lty = 2, col = 'black')
+lines(upr~x, newdata, lty = 2, col = 'black')
+legend("topleft",legend="a",bty="n")
+legend("bottomright",lty=c(1,2,1,NA),pch=c(NA,NA,NA,16),
+       col=c("black","black","green","black"),
+       legend=c("prediction","interval","truth","training"),bty="n")
+
+
+f <- function(x){
+  wave.1 <- sin(3*x)+1
+  wave.2 <- sin(12*x)+1
+  wave.3 <- 0.9 * wave.1 + 0.25 * wave.2
+}
+
+x <- seq(0,2.2,0.001)
+newdata <- data.frame("x"=x,"true" = f(x))
+set.seed(1)
+x <- c(runif(10,0,0.4),runif(18,0.8,1.5),runif(11,1.5,1.7))
+set.seed(10)
+y <- f(x)+runif(length(x),-0.1,0.1)
+
+
+ylim <- c(min(newdata$true),max(newdata$true))
+xlim <- c(0.1,2.1)
+
+
+set.seed(10)
+rf = randomForest(y~x, data.frame(x=x,y=y))
+pr = predict(rf, newdata, predict.all = TRUE)
+par(mar = c(5.1, 1.1, 2.1, 2.1))
+plot(y~x,xlim=xlim,ylim=ylim,xlab = xlab, ylab = NA,yaxt="n",pch=16)
+lines(true~x, newdata, col = 'green')
+lines(pr$aggregate~newdata$x, col = 'black')
+lwr = apply(pr$individual, 1, quantile, 0.025)
+upr = apply(pr$individual, 1, quantile, 0.975)
+lines(lwr~newdata$x, col = 'black', lty = 2)
+lines(upr~newdata$x, col = 'black', lty = 2)
+legend("topleft",legend="b",bty="n")
+dev.off()
+
+################################################################################
+# Relationship predictor, response, AOA, DI
+################################################################################
+
+AOA <- aoa(data.frame("x"=x),newdata,variables="x",thres=0.99)
+
+pdf("../figures/fig_last.pdf",width=6,height=8)
+par(mfrow=c(2,1))
+par(mar = c(0.1, 5.1, 2.1, 0.1))
+plot(y~x,xlim=xlim,ylim=ylim,xlab = NA, xaxt='n',
+     ylab = ylab,pch=16)
+lines(true~x, newdata, col = 'green')
+lines(pr$aggregate~newdata$x, col = 'black')
+lwr = apply(pr$individual, 1, quantile, 0.025)
+upr = apply(pr$individual, 1, quantile, 0.975)
+lines(lwr~newdata$x, col = 'black', lty = 2)
+lines(upr~newdata$x, col = 'black', lty = 2)
+
+
+
+bp <-which(c(FALSE, tail(AOA$AOA,-1) != head(AOA$AOA,-1)))
+polygon(x=c(newdata$x[bp[1]],newdata$x[bp[2]],newdata$x[bp[2]],newdata$x[bp[1]]),
+        y=c(0,0,2.3,2.3),col=rgb(0.6,0.6,0.6,alpha=0.5),border = NA)
+
+polygon(x=c(newdata$x[bp[3]],max(newdata$x)-0.022,max(newdata$x)-0.022,newdata$x[bp[3]]),
+        y=c(0,0,2.3,2.3),col=rgb(0.6,0.6,0.6,alpha=0.5),
+        border = NA)
+
+legend("bottomleft",lty=c(1,2,1,NA,NA),pch=c(NA,NA,NA,16,15),
+       col=c("black","black","green","black","grey"),
+       legend=c("prediction","interval","truth","training","not in AOA")
+       ,bty="n",bg="white")
+legend("topleft",legend="a",bty="n")
+
+par(mar = c(6, 5.1, 0.7, 0.1))
+plot(AOA$DI~newdata$x,xlim=xlim,xlab = xlab, ylab = "DI",
+     type="l",lwd=2)
+abline(attributes(AOA)$aoa_stats$threshold,0,lty=2)
+#legend("topright",lwd=c(2,1),lty=c(1,2),legend=c("DI","Threshold"),bty="n")
+legend("topleft",legend="b",bty="n")
+dev.off()
 
 
 ################################################################################
 # Relationship predictor, response, uncertainty
 ################################################################################
 
-reference  <- c(1:7, 7.8, 8.3, 8.7, 8.9, 9,rep(9.1,8))
-train <- data.frame("x"=c(1:6),"y"=reference[1:6])
-newdat <- data.frame("x"=1:20)
-tmp <- NA
-for (i in 1:nrow(train)){
-  mindist <- apply(newdat,1,function(x){dist(rbind(x,train[i,1]))})
-  mindist <- pmin(mindist,tmp,na.rm=T)
-  tmp <- mindist
-}
-trainDist <- as.matrix(dist(train$x))
-diag(trainDist) <- NA
-trainDist_min <- apply(trainDist,1,FUN=function(x){min(x,na.rm=T)})
-trainDist_mean <- apply(trainDist,1,FUN=function(x){mean(x,na.rm=T)})
-trainDist_avrgmean <- mean(trainDist_mean)
-mindist <- -mindist/trainDist_avrgmean
-predictions <- reference
-predictions[nrow(train):length(predictions)]<- train$y[nrow(train)]
-
-###Plot:
-pdf("../figures/concept_relationship.pdf",width=10,height=5)
-par(mar=c(4,4,1,1),mfrow=c(1,2))
-plot(newdat$x,reference,type="l",lty=1,
-     xlab="Predictor",ylab="Response",lwd=2)
-lines(predictions,lty=2,lwd=2,col="red")
-points(train$x,train$y)
-legend("bottomright",lty=c(1,2,NA),pch=c(NA,NA,1),lwd=c(2,2,NA),
-       col=c("black","red","black","black"),
-       legend=c("Reference","Prediction","Sample"),bty="n",cex=0.8)
-legend("topleft",legend="a",bty="n")
-plot(newdat$x, mindist,type="l",xlab="Predictor",ylab="Applicability index",lwd=2)
-legend("topright",legend="b",bty="n")
-dev.off()
-
+# reference  <- c(1:7, 7.8, 8.3, 8.7, 8.9, 9,rep(9.1,8))
+# train <- data.frame("x"=c(1:6),"y"=reference[1:6])
+# newdat <- data.frame("x"=1:20)
+# tmp <- NA
+# for (i in 1:nrow(train)){
+#   mindist <- apply(newdat,1,function(x){dist(rbind(x,train[i,1]))})
+#   mindist <- pmin(mindist,tmp,na.rm=T)
+#   tmp <- mindist
+# }
+# trainDist <- as.matrix(dist(train$x))
+# diag(trainDist) <- NA
+# trainDist_min <- apply(trainDist,1,FUN=function(x){min(x,na.rm=T)})
+# trainDist_mean <- apply(trainDist,1,FUN=function(x){mean(x,na.rm=T)})
+# trainDist_avrgmean <- mean(trainDist_mean)
+# mindist <- -mindist/trainDist_avrgmean
+# predictions <- reference
+# predictions[nrow(train):length(predictions)]<- train$y[nrow(train)]
+# 
+# ###Plot:
+# pdf("../figures/concept_relationship.pdf",width=10,height=5)
+# par(mar=c(4,4,1,1),mfrow=c(1,2))
+# plot(newdat$x,reference,type="l",lty=1,
+#      xlab="Predictor",ylab="Response",lwd=2)
+# lines(predictions,lty=2,lwd=2,col="red")
+# points(train$x,train$y)
+# legend("bottomright",lty=c(1,2,NA),pch=c(NA,NA,1),lwd=c(2,2,NA),
+#        col=c("black","red","black","black"),
+#        legend=c("Reference","Prediction","Sample"),bty="n",cex=0.8)
+# legend("topleft",legend="a",bty="n")
+# plot(newdat$x, mindist,type="l",xlab="Predictor",ylab="Applicability index",lwd=2)
+# legend("topright",legend="b",bty="n")
+# dev.off()
+# 

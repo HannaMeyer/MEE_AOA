@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # Introduction
 This script contains the complete code for the case study within the paper and creates the figures presented there.
 It can further be used to run experiments under different settings. 
-Note that running the code takes a few minutes!
+Note that running the code takes a few minutes (depending on the number of training data and the size of the study area)!
 
 ## Getting started 
 Major functionality needed is the 'aoa' function from the 'CAST' package that is doing the distance based estimation of the area of applicability. 'Caret' is needed for model training. The case study uses a simulated prediction task based on the 'virtualspecies' package.
@@ -36,16 +36,27 @@ library(hydroGOF)
 Settings for generating the predictors and response need to be defined, as well as the number of training data points and the seed used for all functions that involve randomness.
 The settings specified here are used for the case study published in the paper. Feel free to change them to see how things work under different scenarios!
 
+### Getting started 
+
+
+Note: To reproduce results used in the paper use the following settings:
+
+* Default Case study with random data: npoints=50,meansPCA= c(3, -1), sdPCA=c(2, 2),simulateResponse=c("bio2","bio5","bio10", "bio13","bio14","bio19"),studyarea=c(-15, 65, 30, 75), seed=10
+
+* Case Study with clustered data: npoints=500,nlusters=50,
+maxdist <- 0.6, meansPCA= c(3, -1), sdPCA=c(2, 2), simulateResponse=c("bio2","bio5","bio10", "bio13","bio14", "bio19"), studyarea=c(-15, 65, 30, 75), seed=10
+
 
 ```{r settings}
 cores <- detectCores()-1 # Run computations in parallel?! If not set to 1
 npoints <- 50 # number of training samples
 clustered <- FALSE #TRUE clustered design
-nlusters <- 25 #number of clusters if design=clustered
-maxdist <- 0.7 #maxdist for clustered samples if design=clustered
+nlusters <- 50 #number of clusters if design=clustered
+maxdist <- 0.6 #maxdist for clustered samples if design=clustered
 meansPCA <- c(3, -1) # means of the gaussian response functions to the 2 axes
 sdPCA <- c(2, 2) # sd's of the gaussian response functions to the 2 axes
-simulateResponse <- c("bio2","bio5","bio10", "bio13","bio14","bio19") # variables used to simulate the response
+simulateResponse <- c("bio2","bio5","bio10", "bio13",
+                      "bio14","bio19") # variables used to simulate the response
 studyarea <- c(-15, 65, 30, 75) # extent of study area. Default: Europe
 seed <- 10
 ```
@@ -70,7 +81,7 @@ The virtual response variable is created based on the PCA of a subset of bioclim
 
 ```{r variables,message = FALSE}
 response <- generateSpFromPCA(predictors[[simulateResponse]],
-means = meansPCA,sds = sdPCA, plot=F)$suitab.raster
+                              means = meansPCA,sds = sdPCA, plot=F)$suitab.raster
 ```
 
 ## Simulate training points
@@ -88,10 +99,10 @@ csample <- function(x,n,nclusters,maxdist,seed){
   for (i in 1:length(cpoints)){
     ext <- rgeos::gBuffer(cpoints[i,], width = maxdist)
     newsamples <- sp::spsample(ext, n = (n-nclusters)/nclusters, 
-                                 type="random")
+                               type="random")
     newsamples$clstrID <- rep(i,length(newsamples))
     result <- rbind(result,newsamples)
-
+    
   }
   result$ID <- 1:nrow(result)
   return(result)
@@ -116,10 +127,10 @@ if (clustered){
 
 png("../figures/trainingdata.png", width=26, height=10,units = "cm",res=300)
 p1 <- spplot(stretch(predictors[[simulateResponse]],0,1),col.regions=viridis(100),
-       par.settings =list(strip.background=list(col="grey")))
+             par.settings =list(strip.background=list(col="grey")))
 
 p2 <-spplot(response,col.regions=viridis(100),
-   sp.layout=list("sp.points", samplepoints, col = "red", first = FALSE))
+            sp.layout=list("sp.points", samplepoints, col = "red", first = FALSE))
 grid.arrange(p1,p2,ncol=2,nrow=1,widths=c(1.25,1))
 
 grid.text("a",x = unit(0.02, "npc"), 
@@ -139,6 +150,8 @@ include_graphics("../figures/trainingdata.png")
 
 
 # Model training and prediction
+
+## Preparation
 To prepare model training, predictor variables are extracted for the location of the selected sample data locations.
 
 ```{r traindat}
@@ -152,21 +165,50 @@ if (clustered){
 trainDat <- trainDat[complete.cases(trainDat),]
 ```
 
-
+## Training and cross-validation
 Model training is then done using the caret package. Note that other packages work as well as long as variable importance can be derived. The model output gives information on the general estimated model performance based on random cross validation.
 
 ```{r training}
 set.seed(seed)
-model <- train(trainDat[,names(predictors)],trainDat$response,
-               method="rf",importance=TRUE,tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
+if(!clustered){
+model <- train(trainDat[,names(predictors)],
+               trainDat$response,
+               method="rf",
+               importance=TRUE,
+               tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
                trControl = trainControl(method="cv"))
+
+
+print("random cross-validation performance:")
 print(model)
+}
+#if data are clustered, clustered CV is used:
+if(clustered){
+  folds <- CreateSpacetimeFolds(trainDat, spacevar="clstrID",k=nlusters)
+  model <- train(trainDat[,names(predictors)],
+                 trainDat$response,
+                     method="rf",
+                 importance=TRUE,
+                 tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
+                 trControl = trainControl(method="cv",index=folds$index))
+  print("leave-cluster-out cross-validation performance:")
+  print(model)
+  
+  model_random <- train(trainDat[,names(predictors)],
+                        trainDat$response,
+               method="rf",
+               importance=TRUE,
+               tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
+               trControl = trainControl(method="cv"))
+  print("random cross-validation performance:")
+print(model_random)
+}
 ```
 
 
 ## Prediction and error calculation
 
-The trained model is used to make predictions for the entire study area. The absolute error between prediction and reference is calculated for later comparison with the area of applicability index.
+The trained model is used to make predictions for the entire study area. The absolute error between prediction and reference is calculated for later comparison with the dissimilarity index.
 
 ```{r predict}
 prediction <- predict(predictors,model)
@@ -174,7 +216,9 @@ truediff <- abs(prediction-response)
 ```
 
 # Estimating the area of applicability
-The variable importance from model training can be visualized to get information on how variable weighting will be done during to estimation of the area of applicability index
+
+## Variable importance to get weights
+The variable importance from model training can be visualized to get information on how variable weighting will be done during to estimation of the dissimilarity index
 
 ```{r varimp,message=FALSE, echo=FALSE}
 cairo_pdf("../figures/varimp.pdf", width=4, height=3.5)
@@ -187,21 +231,28 @@ invisible(dev.off())
 include_graphics("../figures/varimp.pdf")
 ```
 
-The area of applicability and the applicability index are then calculated. First using weighted variables, and second (for comparison) without weighting. Everything is run in parallel to speed things up.
+The area of applicability and the dissimilarity index are then calculated. First using weighted variables, and second (for comparison) without weighting. Everything is run in parallel to speed things up.
 
 ```{r uncert,message=FALSE}
-
-if(clustered){
-  clstr <- trainDat$clstrID
-}else{
-  clstr <- NULL
-  }
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#if(clustered){
+#  folds <- trainDat$clstrID
+#}else{
+#  folds <- NULL
+#}
+folds <- NULL
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 cl <- makeCluster(cores)
 #with variable weighting:
-AOA <- aoa(trainDat,predictors, variables = names(predictors),model=model,cl=cl,clstr=clstr)
+AOA <- aoa(trainDat,predictors, variables = names(predictors),model=model,cl=cl,folds=folds)
 #without weighting:
-AOA_noWeights <- aoa(trainDat,predictors, variables = names(predictors),cl=cl,clstr=clstr)
+AOA_noWeights <- aoa(trainDat,predictors, variables = names(predictors),cl=cl,folds=folds)
+
+if (clustered){
+  AOA_random<- aoa(trainDat,predictors, variables = names(predictors),model=model_random,cl=cl)
+}
+
 
 stopCluster(cl)
 ```
@@ -232,13 +283,13 @@ predsd <- RFsd(predictors,model)
 
 # Comparison
 
-The Area of Applicability Index, as well as the standard deviations can then be compared to the true error. 
+The dissimilarity index, as well as the standard deviations can then be compared to the true error. 
 
 ```{r prepare_comp}
 compare <- stack(response,prediction,
-              predsd,truediff, 
-                 AOA$AOAI)
-names(compare) <- c("response","prediction", "sd","true_diff","AOAI")
+                 predsd,truediff, 
+                 AOA$DI)
+names(compare) <- c("response","prediction", "sd","true_diff","DI")
 summary(values(compare))
 ```
 
@@ -246,18 +297,14 @@ summary(values(compare))
 p <- list()
 txts <- c("a","b","c","d","e","f")
 for (i in 1:nlayers(compare)){
-  if(names(compare)[i]== "AOAI"){
-    cols <-rev(viridis(100)) 
-  }else{
-    cols <-viridis(100)
-  }
+  cols <-viridis(100)
   txt <- list("sp.text", c(-12,72), txts[i])
   p[[i]] <- spplot(compare[[i]],col.regions = cols, 
                    sp.layout=list(txt))
 }
 
 
-p[[i+1]] <- sp::spplot(prediction, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), txts[i+1])))+sp::spplot(AOA$AOA,col.regions=c("grey","transparent"))
+p[[i+1]] <- sp::spplot(prediction, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), txts[i+1])))+sp::spplot(AOA$AOA,col.regions=c("transparent","violetred"))
 
 
 png("../figures/caseStudy_PredRef.png",width=24, height=14,units = "cm",res=300)
@@ -267,7 +314,7 @@ grid.arrange(p[[1]],p[[2]], p[[3]],
 invisible(dev.off())
 ```
 
-```{r figs4, echo=FALSE,out.width = "100%", fig.cap="Comparison between reference (a), prediction (b), standard deviation of predictions (c), the true error (d), AOAI based on weighted variables (e), masked predictions (f)"}
+```{r figs4, echo=FALSE,out.width = "100%", fig.cap="Comparison between reference (a), prediction (b), standard deviation of predictions (c), the true error (d), DI based on weighted variables (e), masked predictions (f)"}
 
 
 include_graphics("../figures/caseStudy_PredRef.png")
@@ -275,17 +322,18 @@ include_graphics("../figures/caseStudy_PredRef.png")
 
 
 ## Relationship with the true error
-The general relationship is then visualized via scatterplots, linear models between the true error and the AOAI and RMSE calculation
+The general relationship is then visualized via scatterplots, linear models between the true error and the DI and RMSE calculation
 
 ```{r hexbin, warning=FALSE, message=FALSE, echo=FALSE}
-dat_all <- data.frame("true_abs_error"=values(truediff),                    "type"=rep("AOAI",length(values(AOA$AOAI))), 
-"value"=-values(AOA$AOAI))
-
+dat_all <- data.frame("true_abs_error"=values(truediff),                    "type"=rep("DI",length(values(AOA$DI))), 
+                      "value"=values(AOA$DI))
+th <- attributes(AOA)$aoa_stats$threshold
 png("../figures/hexbin.png", width=12, height=10,units="cm",res=300)
 ggplot(dat_all, aes(value,true_abs_error)) +
   stat_binhex(bins=100)+
   ylab("True absolute error")+
-  xlab("-Applicability Index")+
+  xlab("Dissimilarity Index")+
+  geom_vline(xintercept=th)+
   scale_fill_gradientn(name = "data points",
                        trans = "log",
                        breaks = 10^(0:3),
@@ -296,17 +344,17 @@ invisible(dev.off())
 ```
 
 
-```{r figs5, echo=FALSE, out.width="50%",fig.cap="Relationship between the AOAI and the true error"}
+```{r figs5, echo=FALSE, out.width="50%",fig.cap="Relationship between the DI and the true error"}
 include_graphics("../figures/hexbin.png")
 ```
 
-
+## Comparison between prediction, error, DI and cross validation
 ```{r lm_uncert}
 
-#AOAI with weights:
-summary(lm(values(truediff)~values(AOA$AOAI)))$r.squared
-#AOAI no weights:
-summary(lm(values(truediff)~values(AOA_noWeights$AOAI)))$r.squared
+#DI with weights:
+summary(lm(values(truediff)~values(AOA$DI)))$r.squared
+#DI no weights:
+summary(lm(values(truediff)~values(AOA_noWeights$DI)))$r.squared
 
 #comparison prediction~ref
 summary(lm(values(response)~values(prediction)))$r.squared
@@ -316,12 +364,58 @@ rmse(values(response),values(prediction))
 print(attributes(AOA)$aoa_stats)
 predictionAOI <- prediction
 values(predictionAOI)[values(AOA$AOA)==0] <- NA
-summary(lm(values(response)~values(predictionAOI)))$r.squared
-rmse(values(response),values(predictionAOI))
+paste0("R^2 AOA= ",summary(lm(values(response)~values(predictionAOI)))$r.squared)
+paste0("RMSE AOA= ",rmse(values(response),values(predictionAOI)))
 
 # ...and for outside the AOA
 predictionNOTAOI <- prediction
 values(predictionNOTAOI)[values(AOA$AOA)==1] <- NA
-summary(lm(values(response)~values(predictionNOTAOI)))$r.squared
-rmse(values(response),values(predictionNOTAOI))
+paste0("R^2 outside AOA= ",summary(lm(values(response)~values(predictionNOTAOI)))$r.squared)
+paste0("RMSE outside AOA= ",rmse(values(response),values(predictionNOTAOI)))
+
+```
+
+
+## If applicable: Comparison random vs spatial CV and AOA estimation
+
+#...if clustered compare to default AOA without taking
+#clusteredness into account 
+#should be comparable to random CV error
+```{r lm_uncert_sp}
+if(clustered){
+  prediction_random <- predict(predictors,model_random)
+  
+predictionAOI <- prediction_random
+values(predictionAOI)[values(AOA_random$AOA)==0] <- NA
+print(paste0("R^2 AOA= ",summary(lm(values(response)~values(predictionAOI)))$r.squared))
+print(paste0("RMSE AOA= ", rmse(values(response),values(predictionAOI))))
+
+predictionNOTAOI <- prediction_random
+values(predictionNOTAOI)[values(AOA_random$AOA)==1] <- NA
+print(paste0("R^2 outside AOA= ",summary(lm(values(response)~values(predictionNOTAOI)))$r.squared))
+print(paste0("RMSE outside AOA= ",rmse(values(response),values(predictionNOTAOI))))
+}
+```
+
+```{r compare_spatial,echo=FALSE}
+if (clustered){
+p <- list()
+p[[1]] <-  spplot(AOA$DI,col.regions = cols,
+            sp.layout=list(list("sp.points", samplepoints, col = "red", first = FALSE),list("sp.text", c(-12,72), "a")))
+p[[2]] <- sp::spplot(prediction, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), "b")))+sp::spplot(AOA$AOA,col.regions=c("transparent","violetred"))
+
+p[[3]] <- sp::spplot(prediction_random, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), "c")))+sp::spplot(AOA_random$AOA,col.regions=c("transparent","violetred"))
+
+png("../figures/caseStudy_SPvsRandom.png",width=24, height=9,units = "cm",res=300)
+
+grid.arrange(p[[1]],p[[2]], p[[3]],
+             nrow=1,ncol=3)
+invisible(dev.off())
+}
+```
+
+```{r figs6, echo=FALSE, out.width="100%",fig.cap="Comparison between spatial vs non spatial estimation of the AOA"}
+if(clustered){
+  include_graphics("../figures/caseStudy_SPvsRandom.png")
+}
 ```
