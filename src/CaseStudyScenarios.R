@@ -5,24 +5,6 @@ setwd("/scratch/tmp/hmeyer1/MappingAOA/")
 install.packages("/home/h/hmeyer1/R/CAST_0.4.1.tar.gz", repos = NULL,
                  lib="/home/h/hmeyer1/R/")
 
-#install.packages("/home/h/hmeyer1/R/rworldmap_1.3-6.tar.gz", repos = NULL,
-#                 lib="/home/h/hmeyer1/R/")
-
-#install.packages("/home/h/hmeyer1/R/intervals_0.15.1.tar.gz", repos = NULL,
-#                 lib="/home/h/hmeyer1/R/")
-#
-#install.packages("/home/h/hmeyer1/R/gstat_2.0-4.tar.gz", repos = NULL,
-#                 lib="/home/h/hmeyer1/R/")
-
-#install.packages("/home/h/hmeyer1/R/hydroTSM_0.6-0.tar.gz", repos = NULL,
-#                 lib="/home/h/hmeyer1/R/")
-
-#install.packages("/home/h/hmeyer1/R/hydroGOF_0.4-0.tar.gz", repos = NULL,
-#                 lib="/home/h/hmeyer1/R/")
-#install.packages("/home/h/hmeyer1/R/virtualspecies_1.5.1.tar.gz", repos = NULL,
-#                 lib="/home/h/hmeyer1/R/")
-
-
 library(parallel)
 library(hydroGOF,lib.loc="/home/h/hmeyer1/R/")
 library(virtualspecies,lib.loc="/home/h/hmeyer1/R/")
@@ -54,7 +36,6 @@ mask <- rasterToPolygons(mask,dissolve=TRUE)
 settings <- expand.grid("npoints"=npoints,
                         "meansPCA"=meansPCA,
                         "sdPCA"=sdPCA,"seed"=seed)
-
 resultsTable <- settings
 
 for (setting in 1:nrow(settings)){
@@ -68,21 +49,14 @@ for (setting in 1:nrow(settings)){
                                 means = meansPCA,
                                 sds = sdPCA,
                                 plot=F)$suitab.raster
-
-
   set.seed(seed)
   samplepoints <- spsample(mask,npoints,"random")
-
-
 
   # Model training and prediction
 
   trainDat <- extract(predictors,samplepoints,df=TRUE)
   trainDat$response <- extract (response,samplepoints)
-
-
   trainDat <- trainDat[complete.cases(trainDat),]
-
   set.seed(seed)
   model <- train(trainDat[,names(predictors)],trainDat$response,
                  method="rf",importance=TRUE,tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
@@ -92,14 +66,11 @@ for (setting in 1:nrow(settings)){
 
   prediction <- predict(predictors,model)
   truediff <- abs(prediction-response)
-
+  
+  ### AOA estimation
   cl <- makeCluster(cores)
   uncert <- aoa(trainDat,predictors, variables = names(predictors),model=model,cl=cl)
   stopCluster(cl)
-
-
-
-
 
   # Standard deviation from individual trees for comparison
 
@@ -117,9 +88,8 @@ for (setting in 1:nrow(settings)){
 
 
   ## Relationship with the true error
-  #with weights:
 
-  resultsTable$AOAI_R2[setting] <- summary(lm(values(truediff)~values(uncert$DI)))$r.squared
+  resultsTable$DI_R2[setting] <- summary(lm(values(truediff)~values(uncert$DI)))$r.squared
   resultsTable$RFSD_R2[setting] <- summary(lm(values(truediff)~values(predsd)))$r.squared
   resultsTable$PredError_R2[setting] <- summary(lm(values(response)~values(prediction)))$r.squared
   resultsTable$PredError_RMSE[setting] <- rmse(values(response),values(prediction))
@@ -134,29 +104,16 @@ for (setting in 1:nrow(settings)){
   for (th in 1:length(attributes(uncert)$aoa_stats$AOA_train_stats)){
     thres <- attributes(uncert)$aoa_stats$AOA_train_stats[th]
     thres_name <- names(attributes(uncert)$aoa_stats$AOA_train_stats)[th]
-
     predictionAOI <- prediction
-
     values(predictionAOI)[values(uncert$DI)>thres] <- NA
-
-
-
-
     resultsTable[setting,paste0("PredErrorAOA_R2_",thres_name)] <- summary(lm(values(response)~values(predictionAOI)))$r.squared
     resultsTable[setting,paste0("PredErrorAOA_RMSE_",thres_name)] <- rmse(values(response),values(predictionAOI))
-
     predictionNOTAOI <- prediction
     values(predictionNOTAOI)[values(uncert$DI)<=thres] <- NA
-
-
-    #predictionNOTAOI <- prediction
-    #values(predictionNOTAOI)[values(uncert$AOA)==1] <- NA
-
     if(sum(!is.na(values(predictionNOTAOI)))<2){
       resultsTable[setting,paste0("PredErrorNOTAOA_R2_",thres_name)] <- NA
       resultsTable[setting,paste0("PredErrorNOTAOA_RMSE_",thres_name)] <- NA
     }else{
-
       resultsTable[setting,paste0("PredErrorNOTAOA_R2_",thres_name)] <- summary(lm(values(response)~values(predictionNOTAOI)))$r.squared
       resultsTable[setting,paste0("PredErrorNOTAOA_RMSE_",thres_name)] <- rmse(values(response),values(predictionNOTAOI))
     }
@@ -165,4 +122,4 @@ for (setting in 1:nrow(settings)){
   print(paste0(setting," of ",nrow(settings)," done..."))
 }
 
-save(resultsTable,file="resultsTable_thComp.RData")
+save(resultsTable,file="resultsTable.RData")

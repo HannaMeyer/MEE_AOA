@@ -21,7 +21,15 @@ Major functionality needed is the 'aoa' function from the 'CAST' package that is
 ```{r libraries, message = FALSE}
 rm(list=ls())
 #install_github("HannaMeyer/CAST")
-library(virtualspecies)
+library(virtual#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#if(clustered){
+#  folds <- trainDat$clstrID
+#}else{
+#  folds <- NULL
+#}
+folds <- NULL
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+species)
 library(caret)
 library(CAST)
 library(viridis)
@@ -41,9 +49,9 @@ The settings specified here are used for the case study published in the paper. 
 
 Note: To reproduce results used in the paper use the following settings:
 
-* Default Case study with random data: npoints=50,meansPCA= c(3, -1), sdPCA=c(2, 2),simulateResponse=c("bio2","bio5","bio10", "bio13","bio14","bio19"),studyarea=c(-15, 65, 30, 75), seed=10
+* Default Case study with random data: npoints=50,clustered=FALSE,meansPCA= c(3, -1), sdPCA=c(2, 2),simulateResponse=c("bio2","bio5","bio10", "bio13","bio14","bio19"),studyarea=c(-15, 65, 30, 75), seed=10
 
-* Case Study with clustered data: npoints=500,nlusters=50,
+* Case Study with clustered data: npoints=500,nlusters=50,clustered=TRUE,
 maxdist <- 0.6, meansPCA= c(3, -1), sdPCA=c(2, 2), simulateResponse=c("bio2","bio5","bio10", "bio13","bio14", "bio19"), studyarea=c(-15, 65, 30, 75), seed=10
 
 
@@ -234,14 +242,6 @@ include_graphics("../figures/varimp.pdf")
 The area of applicability and the dissimilarity index are then calculated. First using weighted variables, and second (for comparison) without weighting. Everything is run in parallel to speed things up.
 
 ```{r uncert,message=FALSE}
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#if(clustered){
-#  folds <- trainDat$clstrID
-#}else{
-#  folds <- NULL
-#}
-folds <- NULL
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 cl <- makeCluster(cores)
 #with variable weighting:
