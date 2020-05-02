@@ -15,10 +15,8 @@ caseStudy <- dat[dat$npoints==50&dat$seed==10&
                          sds[,1]==2&sds[,2]==2&
                          means[,1]==3&means[,2]==-1,]
 
-### Find ideal threshold
-
+### Find ideal threshold:
 pdf("../figures/threshold_box.pdf",width=6,height=5)
-#par(mfrow=c(1,2))
 par(mar = c(5.1, 5.2, 2.1, 0.1))
 boxplot(dat$model_RMSE-dat$`PredErrorAOA_RMSE_25%`,
         dat$model_RMSE-dat$`PredErrorAOA_RMSE_50%`,
@@ -27,7 +25,7 @@ boxplot(dat$model_RMSE-dat$`PredErrorAOA_RMSE_25%`,
         dat$model_RMSE-dat$`PredErrorAOA_RMSE_95%`,
         dat$model_RMSE-dat$`PredErrorAOA_RMSE_99%`,
         dat$model_RMSE-dat$`PredErrorAOA_RMSE_100%`,
-        names=c("25%","50%","75%","90%","95%","99%","100%"),
+        names=c("0.25","0.50","0.75","0.90","0.95","0.99","1.00"),
         notch=T,ylab="ME",xlab="threshold")
 
 points(colMeans(data.frame(dat$model_RMSE-dat$`PredErrorAOA_RMSE_25%`,
@@ -36,42 +34,9 @@ points(colMeans(data.frame(dat$model_RMSE-dat$`PredErrorAOA_RMSE_25%`,
                            dat$model_RMSE-dat$`PredErrorAOA_RMSE_90%`,
                            dat$model_RMSE-dat$`PredErrorAOA_RMSE_95%`,
                            dat$model_RMSE-dat$`PredErrorAOA_RMSE_99%`,
-                           dat$model_RMSE-dat$`PredErrorAOA_RMSE_100%`), 
+                           dat$model_RMSE-dat$`PredErrorAOA_RMSE_100%`),
                 na.rm = TRUE),pch=16)
-
-
-
 abline(0,0,lwd=2)
-# legend("topleft",legend="a",bty="n")
-# 
-# par(mar = c(5.1, 2.1, 2.1, 2.2))
-# 
-# boxplot(dat$model_RMSE-dat$`PredErrorAOA_RMSE_25%`,
-#         dat$model_RMSE-dat$`PredErrorAOA_RMSE_50%`,
-#         dat$model_RMSE-dat$`PredErrorAOA_RMSE_75%`,
-#         dat$model_RMSE-dat$`PredErrorAOA_RMSE_90%`,
-#         dat$model_RMSE-dat$`PredErrorAOA_RMSE_95%`,
-#         dat$model_RMSE-dat$`PredErrorAOA_RMSE_99%`,
-#         dat$model_RMSE-dat$`PredErrorAOA_RMSE_100%`,
-#         names=c("25%","50%","75%","90%","95%","99%","100%"),
-#         notch=T,ylab="ME",xlab="threshold",ylim=c(-0.7,0.15))
-# 
-# 
-# 
-# boxplot(dat$model_RMSE-dat$`PredErrorNOTAOA_RMSE_25%`,
-#         dat$model_RMSE-dat$`PredErrorNOTAOA_RMSE_50%`,
-#         dat$model_RMSE-dat$`PredErrorNOTAOA_RMSE_75%`,
-#         dat$model_RMSE-dat$`PredErrorNOTAOA_RMSE_90%`,
-#         dat$model_RMSE-dat$`PredErrorNOTAOA_RMSE_95%`,
-#         dat$model_RMSE-dat$`PredErrorNOTAOA_RMSE_99%`,
-#         dat$model_RMSE-dat$`PredErrorNOTAOA_RMSE_100%`,
-#         names=c("25%","50%","75%","90%","95%","99%","100%"),
-#         notch=T,ylab=NA,xlab="threshold",add=T,col="grey",
-#         pars=list(outcol="grey"))
-# 
-#abline(0,0,lwd=2)
-#legend("topleft",legend="b",bty="n")
-#legend("bottomleft",fill=c("white","grey"),legend=c("AOA","outside AOA"),bty="n")
 dev.off()
 
 
@@ -83,9 +48,8 @@ performanceAOA <- rbind(performanceAOA,data.frame("thres"=thres,
 performanceNOTAOA <- rbind(performanceNOTAOA,data.frame("thres"=thres,
                                                         "ME"=me(dat$model_RMSE,dat[,paste0("PredErrorNOTAOA_RMSE_",thres,"%")])))
 }
-
+# ideal threshold:
 thres <- performanceAOA$thres[which(performanceAOA$ME==min(abs(0-performanceAOA$ME)))]
-
 
 
 #### How well does the model CV error represents the prediction error inside and outside the AOA?
