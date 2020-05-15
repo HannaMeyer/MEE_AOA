@@ -21,15 +21,7 @@ Major functionality needed is the 'aoa' function from the 'CAST' package that is
 ```{r libraries, message = FALSE}
 rm(list=ls())
 #install_github("HannaMeyer/CAST")
-library(virtual#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#if(clustered){
-#  folds <- trainDat$clstrID
-#}else{
-#  folds <- NULL
-#}
-folds <- NULL
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-species)
+library(virtualspecies)
 library(caret)
 library(CAST)
 library(viridis)
@@ -245,9 +237,9 @@ The area of applicability and the dissimilarity index are then calculated. First
 
 cl <- makeCluster(cores)
 #with variable weighting:
-AOA <- aoa(trainDat,predictors, variables = names(predictors),model=model,cl=cl,folds=folds)
+AOA <- aoa(trainDat,predictors, variables = names(predictors),model=model,cl=cl)
 #without weighting:
-AOA_noWeights <- aoa(trainDat,predictors, variables = names(predictors),cl=cl,folds=folds)
+AOA_noWeights <- aoa(trainDat,predictors, variables = names(predictors),cl=cl)
 
 if (clustered){
   AOA_random<- aoa(trainDat,predictors, variables = names(predictors),model=model_random,cl=cl)
@@ -352,12 +344,14 @@ include_graphics("../figures/hexbin.png")
 ```{r lm_uncert}
 
 #DI with weights:
-summary(lm(values(truediff)~values(AOA$DI)))$r.squared
+cor(values(truediff),values(AOA$DI),use="complete.obs")
 #DI no weights:
-summary(lm(values(truediff)~values(AOA_noWeights$DI)))$r.squared
+cor(values(truediff),values(AOA_noWeights$DI),use="complete.obs")
 
 #comparison prediction~ref
 summary(lm(values(response)~values(prediction)))$r.squared
+cor(values(response),values(prediction),use = "complete.obs")
+
 rmse(values(response),values(prediction))
 
 #comparison prediction for the AOA~ref
@@ -365,12 +359,14 @@ print(attributes(AOA)$aoa_stats)
 predictionAOI <- prediction
 values(predictionAOI)[values(AOA$AOA)==0] <- NA
 paste0("R^2 AOA= ",summary(lm(values(response)~values(predictionAOI)))$r.squared)
+paste0("r AOA= ",cor(values(response),values(predictionAOI),use="complete.obs"))
 paste0("RMSE AOA= ",rmse(values(response),values(predictionAOI)))
 
 # ...and for outside the AOA
 predictionNOTAOI <- prediction
 values(predictionNOTAOI)[values(AOA$AOA)==1] <- NA
 paste0("R^2 outside AOA= ",summary(lm(values(response)~values(predictionNOTAOI)))$r.squared)
+paste0("r outside AOA= ",cor(values(response),values(predictionNOTAOI),use="complete.obs"))
 paste0("RMSE outside AOA= ",rmse(values(response),values(predictionNOTAOI)))
 
 ```
@@ -388,11 +384,14 @@ if(clustered){
 predictionAOI <- prediction_random
 values(predictionAOI)[values(AOA_random$AOA)==0] <- NA
 print(paste0("R^2 AOA= ",summary(lm(values(response)~values(predictionAOI)))$r.squared))
+print(paste0("r AOA= ",cor(values(response),values(predictionAOI),use="complete.obs")))
+
 print(paste0("RMSE AOA= ", rmse(values(response),values(predictionAOI))))
 
 predictionNOTAOI <- prediction_random
 values(predictionNOTAOI)[values(AOA_random$AOA)==1] <- NA
 print(paste0("R^2 outside AOA= ",summary(lm(values(response)~values(predictionNOTAOI)))$r.squared))
+print(paste0("r outside AOA= ",cor(values(response),values(predictionNOTAOI),use="complete.obs")))
 print(paste0("RMSE outside AOA= ",rmse(values(response),values(predictionNOTAOI))))
 }
 ```

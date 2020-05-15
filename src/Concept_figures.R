@@ -6,6 +6,7 @@ library(knitr)
 library(scatterplot3d)
 library(ggplot2)
 library(randomForest)
+library(quantregForest)
 
 ################################################################################
 # Figure 3d scatter
@@ -109,7 +110,7 @@ xlab = "predictor"
 ylab = "response"
 
 pdf("../figures/fig1.pdf",width=10,height=5)
-par(mfrow = c(1, 2))
+par(mfrow = c(1, ))
 par(mar = c(5.1, 4.1, 2.1, 0.1))
 plot(y~x, xlim = xlim, ylim = ylim, xlab = xlab, ylab = ylab,pch=16)
 newdata = cbind(newdata, p)
@@ -140,7 +141,7 @@ y <- f(x)+runif(length(x),-0.1,0.1)
 ylim <- c(min(newdata$true),max(newdata$true))
 xlim <- c(0.1,2.1)
 
-
+#### Random Forest with predictions from individual trees
 set.seed(10)
 rf = randomForest(y~x, data.frame(x=x,y=y))
 pr = predict(rf, newdata, predict.all = TRUE)
@@ -153,6 +154,19 @@ upr = apply(pr$individual, 1, quantile, 0.975)
 lines(lwr~newdata$x, col = 'black', lty = 2)
 lines(upr~newdata$x, col = 'black', lty = 2)
 legend("topleft",legend="b",bty="n")
+
+### Quantile regression forest
+#set.seed(10)
+#qrf =  quantregForest(data.frame(x),y)
+#pr  <- predict(qrf,  newdata)
+#par(mar = c(5.1, 1.1, 2.1, 2.1))
+#plot(y~x,xlim=xlim,ylim=ylim,xlab = xlab, ylab = NA,yaxt="n",pch=16)
+#lines(true~x, newdata, col = 'green')
+#lines(pr[,2]~newdata$x, col = 'black')
+#lines(pr[,1]~newdata$x, col = 'black', lty = 2)
+#lines(pr[,3]~newdata$x, col = 'black', lty = 2)
+#legend("topleft",legend="b",bty="n")
+
 dev.off()
 
 ################################################################################
@@ -193,45 +207,5 @@ par(mar = c(6, 5.1, 0.7, 0.1))
 plot(AOA$DI~newdata$x,xlim=xlim,xlab = xlab, ylab = "DI",
      type="l",lwd=2)
 abline(attributes(AOA)$aoa_stats$threshold,0,lty=2)
-#legend("topright",lwd=c(2,1),lty=c(1,2),legend=c("DI","Threshold"),bty="n")
 legend("topleft",legend="b",bty="n")
 dev.off()
-
-
-################################################################################
-# Relationship predictor, response, uncertainty
-################################################################################
-
-# reference  <- c(1:7, 7.8, 8.3, 8.7, 8.9, 9,rep(9.1,8))
-# train <- data.frame("x"=c(1:6),"y"=reference[1:6])
-# newdat <- data.frame("x"=1:20)
-# tmp <- NA
-# for (i in 1:nrow(train)){
-#   mindist <- apply(newdat,1,function(x){dist(rbind(x,train[i,1]))})
-#   mindist <- pmin(mindist,tmp,na.rm=T)
-#   tmp <- mindist
-# }
-# trainDist <- as.matrix(dist(train$x))
-# diag(trainDist) <- NA
-# trainDist_min <- apply(trainDist,1,FUN=function(x){min(x,na.rm=T)})
-# trainDist_mean <- apply(trainDist,1,FUN=function(x){mean(x,na.rm=T)})
-# trainDist_avrgmean <- mean(trainDist_mean)
-# mindist <- -mindist/trainDist_avrgmean
-# predictions <- reference
-# predictions[nrow(train):length(predictions)]<- train$y[nrow(train)]
-# 
-# ###Plot:
-# pdf("../figures/concept_relationship.pdf",width=10,height=5)
-# par(mar=c(4,4,1,1),mfrow=c(1,2))
-# plot(newdat$x,reference,type="l",lty=1,
-#      xlab="Predictor",ylab="Response",lwd=2)
-# lines(predictions,lty=2,lwd=2,col="red")
-# points(train$x,train$y)
-# legend("bottomright",lty=c(1,2,NA),pch=c(NA,NA,1),lwd=c(2,2,NA),
-#        col=c("black","red","black","black"),
-#        legend=c("Reference","Prediction","Sample"),bty="n",cex=0.8)
-# legend("topleft",legend="a",bty="n")
-# plot(newdat$x, mindist,type="l",xlab="Predictor",ylab="Applicability index",lwd=2)
-# legend("topright",legend="b",bty="n")
-# dev.off()
-# 
