@@ -1,5 +1,4 @@
 rm(list=ls())
-cores <- 20
 setwd("/scratch/tmp/hmeyer1/MappingAOA/")
 
 install.packages("/home/h/hmeyer1/R/CAST_0.4.1.tar.gz", repos = NULL,
@@ -66,11 +65,10 @@ for (setting in 1:nrow(settings)){
 
   prediction <- predict(predictors,model)
   truediff <- abs(prediction-response)
-  
+
   ### AOA estimation
-  cl <- makeCluster(cores)
-  uncert <- aoa(trainDat,predictors, variables = names(predictors),model=model,cl=cl)
-  stopCluster(cl)
+  uncert <- aoa(trainDat,predictors, variables = names(predictors),model=model)
+
 
   # Standard deviation from individual trees for comparison
 

@@ -26,7 +26,6 @@ library(caret)
 library(CAST)
 library(viridis)
 library(gridExtra)
-library(parallel)
 library(knitr)
 library(grid)
 library(latticeExtra)
@@ -48,7 +47,6 @@ maxdist <- 0.6, meansPCA= c(3, -1), sdPCA=c(2, 2), simulateResponse=c("bio2","bi
 
 
 ```{r settings}
-cores <- detectCores()-1 # Run computations in parallel?! If not set to 1
 npoints <- 50 # number of training samples
 clustered <- FALSE #TRUE clustered design
 nlusters <- 50 #number of clusters if design=clustered
@@ -235,18 +233,15 @@ The area of applicability and the dissimilarity index are then calculated. First
 
 ```{r uncert,message=FALSE}
 
-cl <- makeCluster(cores)
 #with variable weighting:
-AOA <- aoa(trainDat,predictors, variables = names(predictors),model=model,cl=cl)
+AOA <- aoa(trainDat,predictors, variables = names(predictors),model=model)
 #without weighting:
-AOA_noWeights <- aoa(trainDat,predictors, variables = names(predictors),cl=cl)
+AOA_noWeights <- aoa(trainDat,predictors, variables = names(predictors))
 
 if (clustered){
-  AOA_random<- aoa(trainDat,predictors, variables = names(predictors),model=model_random,cl=cl)
+  AOA_random<- aoa(trainDat,predictors, variables = names(predictors),model=model_random)
 }
 
-
-stopCluster(cl)
 ```
 
 # Standard deviation from individual trees for comparison
