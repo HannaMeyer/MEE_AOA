@@ -28,8 +28,8 @@ samples<- data.frame(rbind(samples,
 
 samples$type=as.character(c(rep("training",30),"new"))
 
-minvalues <- apply(samples[1:30,1:3],2,function(x){min(x,na.rm=TRUE)}) 
-maxvalues <- apply(samples[1:30,1:3],2,function(x){max(x,na.rm=TRUE)}) 
+minvalues <- apply(samples[1:30,1:3],2,function(x){min(x,na.rm=TRUE)})
+maxvalues <- apply(samples[1:30,1:3],2,function(x){max(x,na.rm=TRUE)})
 maxdist <- dist(rbind(maxvalues,minvalues))
 
 
@@ -82,7 +82,7 @@ dev.off()
 uncert <- aoa(samples[1:30,],samples[31,],variables=c("a","b","c"))
 
 print(attributes(uncert))
-cat(paste0("average mean distance in the training data = ",round(attributes(uncert)$aoa_stats$AvrgMean_train,3),
+cat(paste0("average mean distance in the training data = ",round(attributes(uncert)$aoa_stats$Mean_train,3),
             ", \nthreshold = ",round(attributes(uncert)$aoa_stats$threshold,3),
            ", \ndistance to nearest training point = ",round(mindist,3),
            ", \nDI for the new data point = ",round(unlist(uncert$DI),3)))

@@ -15,11 +15,6 @@ seed <- c(10,20,30)
 meansPCA <- as.list(as.data.frame(t(expand.grid(c(1,2,3),c(-1,0,1)))))
 sdPCA <-  as.list(as.data.frame(t(expand.grid(c(1,2,3),c(1,2,3)))))
 
-#meansPCA <- as.list(as.data.frame(t(expand.grid(c(-1,3),c(0,1)))))
-#sdPCA <-  as.list(as.data.frame(t(expand.grid(c(2),c(2)))))
-#npoints <- c(25,50) # number of training samples
-#seed <- c(10)
-
 simulateResponse <- c("bio2","bio5","bio10", "bio13","bio14","bio19") # variables used to simulate the response
 studyarea <- c(-15, 65, 30, 75) # extent of study area. Default: Europe
 
@@ -71,7 +66,6 @@ for (setting in 1:nrow(settings)){
 
 
   # Standard deviation from individual trees for comparison
-
   RFsd <- function(predictors,model){
     prep <- as.data.frame(predictors)
     prep[is.na(prep)] <- -9999
@@ -86,7 +80,6 @@ for (setting in 1:nrow(settings)){
 
 
   ## Relationship with the true error
-
   resultsTable$DI_R2[setting] <- summary(lm(values(truediff)~values(uncert$DI)))$r.squared
   resultsTable$RFSD_R2[setting] <- summary(lm(values(truediff)~values(predsd)))$r.squared
   resultsTable$PredError_R2[setting] <- summary(lm(values(response)~values(prediction)))$r.squared
@@ -99,9 +92,9 @@ for (setting in 1:nrow(settings)){
   # compare for different thresholds
   ################################################################################
 
-  for (th in 1:length(attributes(uncert)$aoa_stats$AOA_train_stats)){
-    thres <- attributes(uncert)$aoa_stats$AOA_train_stats[th]
-    thres_name <- names(attributes(uncert)$aoa_stats$AOA_train_stats)[th]
+  for (th in 1:length(attributes(uncert)$aoa_stats$threshold_stats)){
+    thres <- attributes(uncert)$aoa_stats$threshold_stats[th]
+    thres_name <- names(attributes(uncert)$aoa_stats$threshold_stats)[th]
     predictionAOI <- prediction
     values(predictionAOI)[values(uncert$DI)>thres] <- NA
     resultsTable[setting,paste0("PredErrorAOA_R2_",thres_name)] <- summary(lm(values(response)~values(predictionAOI)))$r.squared
