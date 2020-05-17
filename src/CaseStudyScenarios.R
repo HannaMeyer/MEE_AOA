@@ -1,8 +1,8 @@
 rm(list=ls())
 setwd("/scratch/tmp/hmeyer1/MappingAOA/")
 
-install.packages("/home/h/hmeyer1/R/CAST_0.4.1.tar.gz", repos = NULL,
-                 lib="/home/h/hmeyer1/R/")
+#install.packages("/home/h/hmeyer1/R/CAST_0.4.1.tar.gz", repos = NULL,
+#                 lib="/home/h/hmeyer1/R/")
 
 library(parallel)
 library(hydroGOF,lib.loc="/home/h/hmeyer1/R/")
@@ -62,26 +62,26 @@ for (setting in 1:nrow(settings)){
   truediff <- abs(prediction-response)
 
   ### AOA estimation
-  uncert <- aoa(trainDat,predictors, variables = names(predictors),model=model)
+  AOA <- aoa(trainDat,predictors, variables = names(predictors),model=model)
 
 
   # Standard deviation from individual trees for comparison
-  RFsd <- function(predictors,model){
-    prep <- as.data.frame(predictors)
-    prep[is.na(prep)] <- -9999
-    pred_all <- predict(model$finalModel,prep,predict.all=TRUE)
-    sds <-  apply(pred_all$individual,1,sd)
-    predsd <- predictors[[1]]
-    values(predsd)<-sds
-    values(predsd)[prep[,1]==-9999] <- NA
-    return(predsd)
-  }
-  predsd <- RFsd(predictors,model)
+  # RFsd <- function(predictors,model){
+  #   prep <- as.data.frame(predictors)
+  #   prep[is.na(prep)] <- -9999
+  #   pred_all <- predict(model$finalModel,prep,predict.all=TRUE)
+  #   sds <-  apply(pred_all$individual,1,sd)
+  #   predsd <- predictors[[1]]
+  #   values(predsd)<-sds
+  #   values(predsd)[prep[,1]==-9999] <- NA
+  #   return(predsd)
+  # }
+#  predsd <- RFsd(predictors,model)
 
 
   ## Relationship with the true error
-  resultsTable$DI_R2[setting] <- summary(lm(values(truediff)~values(uncert$DI)))$r.squared
-  resultsTable$RFSD_R2[setting] <- summary(lm(values(truediff)~values(predsd)))$r.squared
+  resultsTable$DI_R2[setting] <- summary(lm(values(truediff)~values(AOA$DI)))$r.squared
+ # resultsTable$RFSD_R2[setting] <- summary(lm(values(truediff)~values(predsd)))$r.squared
   resultsTable$PredError_R2[setting] <- summary(lm(values(response)~values(prediction)))$r.squared
   resultsTable$PredError_RMSE[setting] <- rmse(values(response),values(prediction))
   resultsTable$model_R2[setting] <- model$results$Rsquared[model$results$mtry==model$bestTune$mtry]
@@ -92,15 +92,15 @@ for (setting in 1:nrow(settings)){
   # compare for different thresholds
   ################################################################################
 
-  for (th in 1:length(attributes(uncert)$aoa_stats$threshold_stats)){
-    thres <- attributes(uncert)$aoa_stats$threshold_stats[th]
-    thres_name <- names(attributes(uncert)$aoa_stats$threshold_stats)[th]
+  for (th in 1:length(attributes(AOA)$aoa_stats$threshold_stats)){
+    thres <- attributes(AOA)$aoa_stats$threshold_stats[th]
+    thres_name <- names(attributes(AOA)$aoa_stats$threshold_stats)[th]
     predictionAOI <- prediction
-    values(predictionAOI)[values(uncert$DI)>thres] <- NA
+    values(predictionAOI)[values(AOA$DI)>thres] <- NA
     resultsTable[setting,paste0("PredErrorAOA_R2_",thres_name)] <- summary(lm(values(response)~values(predictionAOI)))$r.squared
     resultsTable[setting,paste0("PredErrorAOA_RMSE_",thres_name)] <- rmse(values(response),values(predictionAOI))
     predictionNOTAOI <- prediction
-    values(predictionNOTAOI)[values(uncert$DI)<=thres] <- NA
+    values(predictionNOTAOI)[values(AOA$DI)<=thres] <- NA
     if(sum(!is.na(values(predictionNOTAOI)))<2){
       resultsTable[setting,paste0("PredErrorNOTAOA_R2_",thres_name)] <- NA
       resultsTable[setting,paste0("PredErrorNOTAOA_RMSE_",thres_name)] <- NA
