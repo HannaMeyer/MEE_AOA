@@ -291,7 +291,7 @@ for (i in 1:nlayers(compare)){
 }
 
 
-p[[i+1]] <- sp::spplot(prediction, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), txts[i+1])))+sp::spplot(AOA$AOA,col.regions=c("transparent","violetred"))
+p[[i+1]] <- sp::spplot(prediction, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), txts[i+1])))+sp::spplot(AOA$AOA,col.regions=c("violetred","transparent"))
 
 
 png("../figures/caseStudy_PredRef.png",width=24, height=14,units = "cm",res=300)
@@ -396,9 +396,9 @@ if (clustered){
 p <- list()
 p[[1]] <-  spplot(AOA$DI,col.regions = cols,
             sp.layout=list(list("sp.points", samplepoints, col = "red", first = FALSE),list("sp.text", c(-12,72), "a")))
-p[[2]] <- sp::spplot(prediction, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), "b")))+sp::spplot(AOA$AOA,col.regions=c("transparent","violetred"))
+p[[2]] <- sp::spplot(prediction, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), "b")))+sp::spplot(AOA$AOA,col.regions=c("violetred","transparent"))
 
-p[[3]] <- sp::spplot(prediction_random, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), "c")))+sp::spplot(AOA_random$AOA,col.regions=c("transparent","violetred"))
+p[[3]] <- sp::spplot(prediction_random, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), "c")))+sp::spplot(AOA_random$AOA,col.regions=c("violetred","transparent"))
 
 png("../figures/caseStudy_SPvsRandom.png",width=24, height=9,units = "cm",res=300)
 
