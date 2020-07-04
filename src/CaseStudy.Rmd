@@ -234,12 +234,12 @@ The area of applicability and the dissimilarity index are then calculated. First
 ```{r uncert,message=FALSE}
 
 #with variable weighting:
-AOA <- aoa(trainDat,predictors, variables = names(predictors),model=model)
+AOA <- aoa(predictors,model=model)
 #without weighting:
-AOA_noWeights <- aoa(trainDat,predictors, variables = names(predictors))
+AOA_noWeights <- aoa(predictors,train=trainDat,variables = names(predictors))
 
 if (clustered){
-  AOA_random<- aoa(trainDat,predictors, variables = names(predictors),model=model_random)
+  AOA_random<- aoa(predictors, model_random)
 }
 
 ```

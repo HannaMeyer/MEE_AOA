@@ -62,7 +62,7 @@ for (setting in 1:nrow(settings)){
   truediff <- abs(prediction-response)
 
   ### AOA estimation
-  AOA <- aoa(trainDat,predictors, variables = names(predictors),model=model)
+  AOA <- aoa(predictors,model)
 
 
   # Standard deviation from individual trees for comparison

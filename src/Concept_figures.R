@@ -79,7 +79,7 @@ dev.off()
 
 ### Return corresponding AOA statistics:
 
-uncert <- aoa(samples[1:30,],samples[31,],variables=c("a","b","c"))
+uncert <- aoa(predictors=samples[31,],train=samples[1:30,],variables=c("a","b","c"))
 
 print(attributes(uncert))
 cat(paste0("average mean distance in the training data = ",round(attributes(uncert)$aoa_stats$Mean_train,3),
@@ -110,7 +110,7 @@ xlab = "predictor"
 ylab = "response"
 
 pdf("../figures/fig1.pdf",width=10,height=5)
-par(mfrow = c(1, ))
+par(mfrow = c(1,2 ))
 par(mar = c(5.1, 4.1, 2.1, 0.1))
 plot(y~x, xlim = xlim, ylim = ylim, xlab = xlab, ylab = ylab,pch=16)
 newdata = cbind(newdata, p)
@@ -173,7 +173,7 @@ dev.off()
 # Relationship predictor, response, AOA, DI
 ################################################################################
 
-AOA <- aoa(data.frame("x"=x),newdata,variables="x",thres=0.99)
+AOA <- aoa(predictors=newdata, train=data.frame("x"=x))
 
 pdf("../figures/fig_last.pdf",width=6,height=8)
 par(mfrow=c(2,1))
@@ -209,3 +209,4 @@ plot(AOA$DI~newdata$x,xlim=xlim,xlab = xlab, ylab = "DI",
 abline(attributes(AOA)$aoa_stats$threshold,0,lty=2)
 legend("topleft",legend="b",bty="n")
 dev.off()
+
