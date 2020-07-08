@@ -79,7 +79,7 @@ dev.off()
 
 ### Return corresponding AOA statistics:
 
-uncert <- aoa(predictors=samples[31,],train=samples[1:30,],variables=c("a","b","c"))
+uncert <- aoa(samples[31,],train=samples[1:30,],variables=c("a","b","c"))
 
 print(attributes(uncert))
 cat(paste0("average mean distance in the training data = ",round(attributes(uncert)$aoa_stats$Mean_train,3),
@@ -173,7 +173,7 @@ dev.off()
 # Relationship predictor, response, AOA, DI
 ################################################################################
 
-AOA <- aoa(predictors=newdata, train=data.frame("x"=x))
+AOA <- aoa(newdata, train=data.frame("x"=x))
 
 pdf("../figures/fig_last.pdf",width=6,height=8)
 par(mfrow=c(2,1))
