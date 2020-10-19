@@ -1,0 +1,527 @@
+---
+title: "Method of AOA explained in figures"
+subtitle: "Supplementary to the paper 'Predicting into unknown space? Estimating the area of applicability of spatial prediction models'"
+author: "Hanna Meyer"
+date: "18/10/2020"
+header-includes:
+  - \usepackage{float}
+  - \floatplacement{figure}{H} 
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r libraries, message = FALSE,include = FALSE}
+rm(list=ls())
+#install_github("HannaMeyer/CAST")
+library(virtualspecies)
+library(caret)
+library(CAST)
+library(viridis)
+library(gridExtra)
+library(knitr)
+library(grid)
+library(latticeExtra)
+library(hydroGOF)
+library(plotrix)
+library(scatterplot3d)
+library(ggplot2)
+library(randomForest)
+library(quantregForest)
+
+```
+
+
+
+```{r settings,include = FALSE}
+npoints <- 150 # number of training samples
+meansPCA <- c(3, -1) # means of the gaussian response functions to the 2 axes
+sdPCA <- c(2, 2) # sd's of the gaussian response functions to the 2 axes
+simulateResponse <- c("bio2","bio5","bio10", "bio13",
+                      "bio14","bio19") # variables used to simulate the response
+studyarea <- c(-15, 65, 30, 75) # extent of study area. Default: Europe
+seed <- 1 
+var1="bio1"
+var2="bio13"
+```
+
+
+```{r data, message = FALSE,include = FALSE}
+predictors_global <- getData('worldclim', var='bio', res=10, path='../data/')
+wp <- extent(studyarea)
+predictors <- crop(predictors_global,wp)
+
+#create a mask for land area:
+mask <- predictors[[1]]
+values(mask)[!is.na(values(mask))] <- 1
+
+response <- generateSpFromPCA(predictors[[simulateResponse]],
+                              means = meansPCA,sds = sdPCA, plot=F)$suitab.raster
+mask <- rasterToPolygons(mask,dissolve=TRUE)
+set.seed(seed)
+samplepoints <- spsample(mask,npoints,"random")
+
+trainDat <- extract(predictors,samplepoints,df=TRUE)
+trainDat <- trainDat[,c(var1,var2)]
+names(trainDat) <- c("A","B")
+trainDat$response <- extract (response,samplepoints)
+
+```
+
+```{r model,include = FALSE}
+
+set.seed(seed)
+folds <- createFolds(trainDat$response,k=3,returnTrain = TRUE)
+set.seed(seed)
+model <- train(trainDat[,c("A","B")],trainDat$response,
+               trControl = trainControl(method="cv",index=folds,savePredictions = TRUE),
+               importance=T)
+weights <- t(varImp(model,scale=F)$importance)
+```
+
+```{r newdat,include = FALSE}
+newdat_orig <- data.frame("A"=seq(min(values(predictors[[var1]]),na.rm=T),max(values(predictors[[var1]]),na.rm=T),length.out=100),
+                    "B"=seq(min(values(predictors[[var2]]),na.rm=T),max(values(predictors[[var2]]),na.rm=T),length.out=100))
+newdat_orig <- expand.grid(newdat_orig[,1],newdat_orig[,2])
+names(newdat_orig) <- c("A","B")
+
+
+newdat_pred <- predict(model,newdat_orig)
+newdat_aoa <- aoa(newdat_orig,model,returnTrainDI = TRUE)
+alldat <- data.frame(newdat_orig,"pred"=newdat_pred,
+                     "aoa"=newdat_aoa)
+
+trainDat_scaled<- scale(trainDat[,c("A","B")])
+scaleparam <- attributes(trainDat_scaled)
+newdat <- scale(newdat_orig,center=scaleparam$`scaled:center`,                   scale=scaleparam$`scaled:scale`)
+
+trainDat_weights <- data.frame(trainDat_scaled[,"A"]*weights[,"A"],
+trainDat_scaled[,"B"]*weights[,"B"])
+names(trainDat_weights) <- c("A","B")
+newdat[,"A"] <- newdat[,"A"]*weights[,"A"]
+newdat[,"B"] <- newdat[,"B"]*weights[,"B"]
+```
+
+# Create Sample data, scale and weight them
+
+```{r Fig_weightedData,include = FALSE}
+
+
+pdf("../figures/concept_figures/weightedData.pdf",width=10,height=5)
+#par(mfrow=c(1,2))
+newpoint <- 7030
+
+par(fig=c(0,0.5,0,1), new=TRUE)
+plot(trainDat[,"A"],trainDat[,"B"],pch=16,
+     xlim=c(min(newdat_orig[,"A"]),max(newdat_orig[,"A"])),
+     ylim=c(min(newdat_orig[,"B"]),max(newdat_orig[,"B"])),
+      xlab="Predictor A",ylab="Predictor B")
+points(newdat_orig[newpoint,"A"],newdat_orig[newpoint,"B"],pch=4,col="red")
+legend("topleft",pch=c(16,4),col=c("black","red"),legend=
+         c("Training samples","New data point (example)"),bty="n")
+
+par(fig=c(0.26,0.49,0.53,0.98), new=TRUE)
+par(mgp=c(1,0.4,0))
+barplot(unlist(t(data.frame(varImp(model,scale=F)$importance))),horiz=T,xlab="",cex.axis=0.75,cex.names=0.75)
+title(xlab="Importance", line=1.2,cex.lab=0.75,adj=0)
+
+par(mgp=c(3,1,0))
+par(fig=c(0.51,1,0,1),new=TRUE)
+plot(trainDat_weights[,"A"],
+     trainDat_weights[,"B"],
+     xlab="Predictor A (scaled and weighted)",ylab="Predictor B (scaled and weighted)",pch=16,
+      xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
+     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])))
+
+points(newdat[newpoint,"A"],newdat[newpoint,"B"],pch=4,col="red")
+legend("topleft",pch=c(16,4),col=c("black","red"),legend=
+         c("Training samples","New data point (example)"),bty="n")
+dev.off()
+```
+
+```{r figs1, echo=FALSE,out.width="100%",fig.cap="Initial situation: Training samples in a multidimensional (here 2) predictor space and a new data point for which predictions should be made and it should be analysed if the trained model can be applied here. b: First, the predictor space is scaled and centered according to the variable importance shown in a."}
+include_graphics("../figures/concept_figures/weightedData.pdf")
+```
+
+
+# calculate the DI of a new point
+```{r Fig_Distance2Nearest,include = FALSE}
+tmp <- NA
+for (i in 1:nrow(trainDat_weights[,1:2])){
+  mindist <- dist(rbind(newdat[newpoint,1:2],trainDat_weights[i,1:2]))
+  mindist <- pmin(mindist,tmp,na.rm=T)
+  if(i>1&&mindist<tmp){
+    whichIsMin <- i
+  }
+  tmp <- mindist
+}
+
+
+pdf("../figures/concept_figures/DI.pdf",width=5.5,height=5)
+plot(trainDat_weights[,"A"],
+     trainDat_weights[,"B"],pch=16,xlab="Predictor A (scaled and weighted)",ylab="Predictor B (scaled and weighted)",
+      xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
+     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])))
+
+
+lines(c(newdat[newpoint,"A"],trainDat_weights[whichIsMin,"A"]),
+        c(newdat[newpoint,"B"],trainDat_weights[whichIsMin,"B"]))
+points(newdat[newpoint,"A"],newdat[newpoint,"B"],pch=4,col="red")
+text(newdat[newpoint,"A"],newdat[newpoint,"B"],
+     paste0("dist=",round(mindist,2),", DI=",round(mindist/attributes(newdat_aoa)$aoa_stats$Mean_train,2)),pos=4)
+legend("topleft",pch=c(16,4),col=c("black","red"),legend=c("Training samples","New data point (example)"),bty="n")
+legend("topright",legend=paste0("Average mean distance between\nall training data = ", round(attributes(newdat_aoa)$aoa_stats$Mean_train,2)),bty="n",cex=0.5)
+dev.off()
+```
+
+```{r figs2, echo=FALSE,out.width="100%",fig.cap="the DI for a new data point is then estimated by calculating the distance to the closest training point in the predictor space. This distance is divided by the average of mean distances between all training data."}
+include_graphics("../figures/concept_figures/DI.pdf")
+```
+
+# Calculate the DI within the training data to get the threshold for the AOA
+
+```{r Fig_DIOfTraining,include = FALSE}
+### DI of training data
+trainDat_weights$fold <- substr(model$pred$Resample,5,5)
+firstpoint <- 119
+tmp <- NA
+for (i in 1:nrow(trainDat_weights[,1:2])){
+  mindist <- dist(rbind(trainDat_weights[firstpoint,1:2],trainDat_weights[i,1:2]))
+  if(trainDat_weights$fold[firstpoint]==trainDat_weights$fold[i]){
+    mindist <- NA
+  }
+  mindist <- pmin(mindist,tmp,na.rm=T)
+  if(i>1&&mindist<tmp){
+    whichIsMin <- i
+  }
+  tmp <- mindist
+}
+
+
+
+pdf("../figures/concept_figures/DI_training.pdf")
+cols_fold <- c("blue","green","orange")
+#par(mfrow=c(1,2))
+par(fig=c(0,0.7,0,0.7), new=TRUE)
+plot(trainDat_weights[,"A"],
+     trainDat_weights[,"B"],col=cols_fold[as.numeric(trainDat_weights$fold)],pch=16,xlab="Predictor A (scaled and weighted)",ylab="Predictor B (scaled and weighted)",
+      xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
+     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])))
+
+points(trainDat_weights[firstpoint,"A"],trainDat_weights[firstpoint,"B"],pch=1,col="red")
+
+lines(c(trainDat_weights[firstpoint,"A"],trainDat_weights[whichIsMin,"A"]),
+        c(trainDat_weights[firstpoint,"B"],trainDat_weights[whichIsMin,"B"]))
+text(trainDat_weights[firstpoint,"A"],trainDat_weights[firstpoint,"B"],paste0("dist=",round(mindist,2),", DI= ",round(mindist/attributes(newdat_aoa)$aoa_stats$Mean_train,2)),pos=3)
+legend("topleft",pch=c(rep(16,3),1),col=c(cols_fold,"red"),legend=c("Fold 1","Fold 2","Fold 3","Example"),bty="n")
+legend("topright",legend=paste0("Average mean distance between\nall training data = ", round(attributes(newdat_aoa)$aoa_stats$Mean_train,2)),bty="n",cex=0.5)
+
+par(fig=c(0.65,1,0,0.7),new=TRUE)
+
+ boxplot(attributes(newdat_aoa)$TrainDI,ylab="DI of training data")
+    abline(boxplot.stats(attributes(newdat_aoa)$TrainDI)$stats[5],0,col=alpha("blue",0.5),lwd=2)
+    text(1.27,boxplot.stats(attributes(newdat_aoa)$TrainDI)$stats[5],
+         "AOA-threshold",pos=1,col=alpha("blue",0.5),cex=0.48)
+ dev.off()
+```
+ 
+ 
+```{r figs3, echo=FALSE,out.width="100%",fig.cap="To answer the question if the trained model can be applied to a new data point (like the one in the previous figure), a threshold is used. This is the outlier-removed maximum DI of the cross-validated training data. The calculation of the DI of the training data is shown here for one example: The example data point is in fold 3 of the model. Therefore the distance to the nearest training data point NOT located in fold 3 is used to calcuate the DI for this sample. This is done for each training data point (boxplot) and the threshold is then derived from these DI values, so that a data point is outside the AOA if it is more dissimilar than the dissimilarity observed within the training data."}
+include_graphics("../figures/concept_figures/DI_training.pdf")
+```
+
+ 
+# Estimate the AOA for each new potential data point
+
+```{r Fig_DI_and_AOA,include = FALSE}
+
+ pdf("../figures/concept_figures/AOA.pdf",width=10,height=5)
+ par(mfrow=c(1,2))
+alldat$order = findInterval(alldat$aoa.DI, sort(alldat$aoa.DI))
+
+plot(alldat$A,alldat$B,pch=15,col=viridis(nrow(alldat))[alldat$order],
+     xlab="Predictor A",ylab="Predictor B")
+text(250,345,"DI",cex = 0.75)
+color.legend(250,250,260,330,round(c(min(alldat$aoa.DI),alldat$aoa.DI[alldat$order==nrow(alldat)*0.5],alldat$aoa.DI[alldat$order==nrow(alldat)*0.75],max(alldat$aoa.DI)),1),
+viridis(nrow(alldat))[c(1,nrow(alldat)*0.5,nrow(alldat)*0.75,nrow(alldat))],gradient="y",cex = 0.75)
+
+
+points(trainDat[,"A"],trainDat[,"B"],pch=16)
+points(newdat_orig[newpoint,"A"],newdat_orig[newpoint,"B"],pch=4,col="red")
+legend("topleft",pch=c(16,4),col=c("black","red"),legend=c("Training samples","New data point (example)"),bty="n")
+
+
+#alldat$order = findInterval(alldat$pred, sort(alldat$pred))
+plot(alldat$A,alldat$B,pch=15,col=viridis(nrow(alldat))[alldat$order],
+     xlab="Predictor A",ylab="Predictor B")
+points(alldat$A,alldat$B,pch=16,col=c("white","transparent")[alldat$aoa.AOA+1],cex=1.5)
+text(250,345,"DI",cex = 0.75)
+color.legend(250,250,260,330,round(c(min(alldat$aoa.DI),alldat$aoa.DI[alldat$order==nrow(alldat)*0.5],alldat$aoa.DI[alldat$order==nrow(alldat)*0.75],max(alldat$aoa.DI)),1),
+viridis(nrow(alldat))[c(1,nrow(alldat)*0.5,nrow(alldat)*0.75,nrow(alldat))],gradient="y",cex = 0.75)
+
+points(trainDat[,"A"],trainDat[,"B"],pch=16)
+points(newdat_orig[newpoint,"A"],newdat_orig[newpoint,"B"],pch=4,col="red")
+legend("topleft",pch=c(16,4),col=c("black","red"),legend=c("Training samples","New data point (example)"),bty="n")
+
+dev.off()
+```
+
+
+```{r figs4, echo=FALSE,out.width="100%",fig.cap="This threshold can be applied to the entire predictor space to derive the AOA (b) from the DI (a) of each new data point."}
+include_graphics("../figures/concept_figures/AOA.pdf")
+```
+
+ 
+
+
+```{r Fig_DI_and_AOA_sp,include = FALSE}
+#### do the same spatial
+
+#predictors <- predictors[[c(var1,var2)]]
+#names(predictors) <- c("A","B")
+#AOA_sp <- aoa(predictors,model)
+#spplot(AOA_sp$DI)
+#spplot(AOA_sp$AOA)
+```
+
+# Additional figures
+## Threshold thoughts
+
+```{r Fig_thresholds,include = FALSE}
+
+pdf("../figures/concept_figures/threshold_thoughts.pdf")
+ boxplot(attributes(newdat_aoa)$TrainDI,ylab="DI of train data")
+ abline(attributes(newdat_aoa)$aoa_stats$threshold,0,col="red")
+ abline(attributes(newdat_aoa)$aoa_stats$threshold_stats[6],0,col="red",lty=2)
+  abline(attributes(newdat_aoa)$aoa_stats$threshold_stats[7],0,col="red",lty=3)
+ 
+ 
+  abline(boxplot.stats(attributes(newdat_aoa)$TrainDI)$stats[5],0,col="blue")
+  legend("bottomright",lty=c(1,2,3,1),col=c("red","red","red","blue"),legend=c("0.95 quantile","0.99 quantile","1.00 quantile","upper whisker"),bty="n")
+ dev.off()
+
+```
+
+```{r figs_thresholdthoughts, echo=FALSE,out.width="100%",fig.cap=""}
+include_graphics("../figures/concept_figures/threshold_thoughts.pdf")
+```
+
+
+
+## Figure 3d scatter
+```{r Fig_3dscatter,include = FALSE}
+set.seed(15)
+samples <- data.frame("a"=sample(1:50,30,replace=T), #1:50,30
+                      "b"=sample(11:20,30,replace=T), #11:20,30
+                      "c"=sample(12:16,30,replace=T)) #12:16,30
+samples <- scale(samples[,1:3])
+
+
+scaleparam <- attributes(samples)
+samples<- data.frame(rbind(samples,
+                           scale(data.frame("a"=-28,"b"=12,"c"=14),
+                                 center=scaleparam$`scaled:center`,
+                                 scale=scaleparam$`scaled:scale`)
+))
+
+
+samples$type=as.character(c(rep("training",30),"new"))
+
+minvalues <- apply(samples[1:30,1:3],2,function(x){min(x,na.rm=TRUE)})
+maxvalues <- apply(samples[1:30,1:3],2,function(x){max(x,na.rm=TRUE)})
+maxdist <- dist(rbind(maxvalues,minvalues))
+
+
+tmp <- NA
+for (i in 1:nrow(samples[1:30,1:3])){
+  mindist <- dist(rbind(samples[31,1:3],samples[i,1:3]))
+  mindist <- pmin(mindist,tmp,na.rm=T)
+  if(i>1&&mindist<tmp){
+    whichIsMin <- i
+  }
+  tmp <- mindist
+}
+
+colors <- c("grey", "black")
+colors <- colors[as.numeric(factor(samples$type))]
+pchs <- c(16,4)
+pchs <- pchs[as.numeric(factor(samples$type))]
+
+
+cairo_pdf("../figures/concept_figures/3dscatter.pdf",width=7,height = 7)
+plt <- scatterplot3d(samples[,1:3], pch = pchs,
+                     grid=TRUE,lwd=2,cex.symbols = 1.1)
+tmp <- lapply(1:30,FUN=function(t){
+  plt$points3d(x=c(samples[t,1],samples[31,1]),
+               y=c(samples[t,2],samples[31,2]),
+               z=c(samples[t,3],samples[31,3]),
+               type="l", col="grey", lwd=1,lty=1)
+})
+
+
+plt$points3d(x=c(samples[whichIsMin,1],samples[31,1]),
+             y=c(samples[whichIsMin,2],samples[31,2]),
+             z=c(samples[whichIsMin,3],samples[31,3]),
+             type="l", col="black", lwd=2,lty=1)
+attributes(mindist)$Labels[2]
+
+
+plt$points3d(samples[,1:3], pch = pchs,
+             lwd=2)
+plt$box3d()
+
+legend("topleft",pch=c(4,16,NA,NA),lty=c(NA,NA,1,1),
+       lwd=c(NA,NA,2,1),
+       col=c("black","black","black","grey"),
+       legend=c("training","new","minimum distance","distances"),bty="n",cex=0.9)
+dev.off()
+
+### Return corresponding AOA statistics:
+
+uncert <- aoa(samples[31,],train=samples[1:30,],variables=c("a","b","c"))
+
+print(attributes(uncert))
+cat(paste0("average mean distance in the training data = ",round(attributes(uncert)$aoa_stats$Mean_train,3),
+            ", \nthreshold = ",round(attributes(uncert)$aoa_stats$threshold,3),
+           ", \ndistance to nearest training point = ",round(mindist,3),
+           ", \nDI for the new data point = ",round(unlist(uncert$DI),3)))
+```
+
+
+```{r figs3Dscatter, echo=FALSE,out.width="100%",fig.cap="..."}
+include_graphics("../figures/concept_figures/3dscatter.pdf")
+```
+
+
+
+## General problem of random forests in "unknown environments"
+
+```{r Fig_predintervals,include = FALSE}
+f = function(x, z = 0.8, b = 0, e = 0.3) {
+  z * x+ b + rnorm(length(x)) * e
+}
+set.seed(131)
+x = sort(runif(30, 0.7, 1.2))
+y = f(x, z = 1)
+m = lm(y~x)
+x_new = seq(0,2.2,length.out=100)
+newdata = data.frame(x = x_new, true = f(x_new, z = 1, e = 0))
+p = predict(m, newdata, interval = "prediction")
+ylim = range(p)
+ylim = c(min(newdata$true),max(newdata$true))
+xlim = c(0.1,2.1)
+xlab = "predictor"
+ylab = "response"
+
+pdf("../figures/concept_figures/fig1.pdf",width=10,height=5)
+par(mfrow = c(1,2 ))
+par(mar = c(5.1, 4.1, 2.1, 0.1))
+plot(y~x, xlim = xlim, ylim = ylim, xlab = xlab, ylab = ylab,pch=16)
+newdata = cbind(newdata, p)
+lines(true~x, newdata, col = 'green')
+lines(fit~x, newdata, col = 'black')
+lines(lwr~x, newdata, lty = 2, col = 'black')
+lines(upr~x, newdata, lty = 2, col = 'black')
+legend("topleft",legend="a",bty="n")
+legend("bottomright",lty=c(1,2,1,NA),pch=c(NA,NA,NA,16),
+       col=c("black","black","green","black"),
+       legend=c("prediction","interval","truth","training"),bty="n")
+
+
+f <- function(x){
+  wave.1 <- sin(3*x)+1
+  wave.2 <- sin(12*x)+1
+  wave.3 <- 0.9 * wave.1 + 0.25 * wave.2
+}
+
+x <- seq(0,2.2,0.001)
+newdata <- data.frame("x"=x,"true" = f(x))
+set.seed(1)
+x <- c(runif(10,0,0.4),runif(18,0.8,1.5),runif(11,1.5,1.7))
+set.seed(10)
+y <- f(x)+runif(length(x),-0.1,0.1)
+
+
+ylim <- c(min(newdata$true),max(newdata$true))
+xlim <- c(0.1,2.1)
+
+#### Random Forest with predictions from individual trees
+set.seed(10)
+rf = randomForest(y~x, data.frame(x=x,y=y))
+pr = predict(rf, newdata, predict.all = TRUE)
+par(mar = c(5.1, 1.1, 2.1, 2.1))
+plot(y~x,xlim=xlim,ylim=ylim,xlab = xlab, ylab = NA,yaxt="n",pch=16)
+lines(true~x, newdata, col = 'green')
+lines(pr$aggregate~newdata$x, col = 'black')
+lwr = apply(pr$individual, 1, quantile, 0.025)
+upr = apply(pr$individual, 1, quantile, 0.975)
+lines(lwr~newdata$x, col = 'black', lty = 2)
+lines(upr~newdata$x, col = 'black', lty = 2)
+legend("topleft",legend="b",bty="n")
+
+### Quantile regression forest
+#set.seed(10)
+#qrf =  quantregForest(data.frame(x),y)
+#pr  <- predict(qrf,  newdata)
+#par(mar = c(5.1, 1.1, 2.1, 2.1))
+#plot(y~x,xlim=xlim,ylim=ylim,xlab = xlab, ylab = NA,yaxt="n",pch=16)
+#lines(true~x, newdata, col = 'green')
+#lines(pr[,2]~newdata$x, col = 'black')
+#lines(pr[,1]~newdata$x, col = 'black', lty = 2)
+#lines(pr[,3]~newdata$x, col = 'black', lty = 2)
+#legend("topleft",legend="b",bty="n")
+
+dev.off()
+```
+
+```{r figsPredIntervals, echo=FALSE,out.width="100%",fig.cap="..."}
+include_graphics("../figures/concept_figures/fig1.pdf")
+```
+
+
+### AOA for this example
+
+```{r Fig_predintervalsAOA,include = FALSE}
+AOA <- aoa(newdata, train=data.frame("x"=x))
+
+pdf("../figures/concept_figures/fig_last.pdf",width=6,height=8)
+par(mfrow=c(2,1))
+par(mar = c(0.1, 5.1, 2.1, 0.1))
+plot(y~x,xlim=xlim,ylim=ylim,xlab = NA, xaxt='n',
+     ylab = ylab,pch=16)
+lines(true~x, newdata, col = 'green')
+lines(pr$aggregate~newdata$x, col = 'black')
+lwr = apply(pr$individual, 1, quantile, 0.025)
+upr = apply(pr$individual, 1, quantile, 0.975)
+lines(lwr~newdata$x, col = 'black', lty = 2)
+lines(upr~newdata$x, col = 'black', lty = 2)
+
+bp <-which(c(FALSE, tail(AOA$AOA,-1) != head(AOA$AOA,-1)))
+polygon(x=c(newdata$x[bp[1]],newdata$x[bp[2]],newdata$x[bp[2]],newdata$x[bp[1]]),
+        y=c(0,0,2.3,2.3),col=rgb(0.6,0.6,0.6,alpha=0.5),border = NA)
+
+polygon(x=c(newdata$x[bp[3]],max(newdata$x)-0.022,max(newdata$x)-0.022,newdata$x[bp[3]]),
+        y=c(0,0,2.3,2.3),col=rgb(0.6,0.6,0.6,alpha=0.5),
+        border = NA)
+
+legend("bottomleft",lty=c(1,2,1,NA,NA),pch=c(NA,NA,NA,16,15),
+       col=c("black","black","green","black","grey"),
+       legend=c("prediction","interval","truth","training","not in AOA")
+       ,bty="n",bg="white")
+legend("topleft",legend="a",bty="n")
+
+par(mar = c(6, 5.1, 0.7, 0.1))
+plot(AOA$DI~newdata$x,xlim=xlim,xlab = xlab, ylab = "DI",
+     type="l",lwd=2)
+abline(attributes(AOA)$aoa_stats$threshold,0,lty=2)
+legend("topleft",legend="b",bty="n")
+dev.off()
+```
+
+```{r figsPredIntervalsAOA, echo=FALSE,out.width="100%",fig.cap="..."}
+include_graphics("../figures/concept_figures/fig_last.pdf")
+```
+
