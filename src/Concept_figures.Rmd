@@ -108,10 +108,7 @@ newdat[,"B"] <- newdat[,"B"]*weights[,"B"]
 # Create Sample data, scale and weight them
 
 ```{r Fig_weightedData,include = FALSE}
-
-
 pdf("../figures/concept_figures/weightedData.pdf",width=10,height=5)
-#par(mfrow=c(1,2))
 newpoint <- 7030
 
 par(fig=c(0,0.5,0,1), new=TRUE)
@@ -183,10 +180,12 @@ include_graphics("../figures/concept_figures/DI.pdf")
 
 # Calculate the DI within the training data to get the threshold for the AOA
 
-```{r Fig_DIOfTraining,include = FALSE}
+```{r prep,include=FALSE}
 ### DI of training data
-trainDat_weights$fold <- substr(model$pred$Resample,5,5)
+cols_fold <- c("blue","green","orange")
 firstpoint <- 119
+
+trainDat_weights$fold <- substr(model$pred$Resample,5,5)
 tmp <- NA
 for (i in 1:nrow(trainDat_weights[,1:2])){
   mindist <- dist(rbind(trainDat_weights[firstpoint,1:2],trainDat_weights[i,1:2]))
@@ -200,12 +199,61 @@ for (i in 1:nrow(trainDat_weights[,1:2])){
   tmp <- mindist
 }
 
+### estimate mean distance between all points:
+  trainDist_mean <- c()
+  trainDist_min <- c()
+  for (i in 1:nrow(trainDat_weights)){
+    trainDist <- FNN::knnx.dist(trainDat_weights[i,c("A","B")],trainDat_weights[,c("A","B")],k=1)
+    trainDist[i] <- NA
+
+    if (!is.null(folds)){
+      trainDist[trainDat_weights$fold==trainDat_weights$fold[i]] <- NA
+    }
+
+    trainDist_mean <- c(trainDist_mean,mean(trainDist,na.rm=T))
+    trainDist_min <- c(trainDist_min,min(trainDist,na.rm=T))
+  }
 
 
-pdf("../figures/concept_figures/DI_training.pdf")
-cols_fold <- c("blue","green","orange")
-#par(mfrow=c(1,2))
-par(fig=c(0,0.7,0,0.7), new=TRUE)
+```
+
+
+
+
+```{r Fig_DIOfTraining,include = FALSE}
+
+pdf("../figures/concept_figures/DI_training.pdf",width=10,height=5)
+par(fig=c(0,0.5,0,1), new=TRUE)
+plot(trainDat_weights[,"A"],
+     trainDat_weights[,"B"],col=cols_fold[as.numeric(trainDat_weights$fold)],pch=16,xlab="Predictor A (scaled and weighted)",ylab="Predictor B (scaled and weighted)",
+      xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
+     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])))
+
+points(trainDat_weights[firstpoint,"A"],trainDat_weights[firstpoint,"B"],pch=1,col="red")
+
+
+for (i in 1:nrow(trainDat_weights)){
+  if(trainDat_weights$fold[i]==trainDat_weights$fold[firstpoint]){
+    next
+  }
+lines(c(trainDat_weights[firstpoint,"A"],trainDat_weights[i,"A"]),
+        c(trainDat_weights[firstpoint,"B"],trainDat_weights[i,"B"]),
+      col="grey")
+}
+points(trainDat_weights[,"A"],
+     trainDat_weights[,"B"],col=cols_fold[as.numeric(trainDat_weights$fold)],pch=16)
+
+points(trainDat_weights[firstpoint,"A"],trainDat_weights[firstpoint,"B"],pch=1,col="red")
+
+legend("topleft",pch=c(rep(16,3),1),col=c(cols_fold,"red"),legend=c("Fold 1","Fold 2","Fold 3","Example"),bty="n")
+
+legend("topright",legend=paste0("Mean distance for example =", round(
+                                trainDist_mean[firstpoint],2),"\nAverage mean distance between\nall training data =",round(attributes(newdat_aoa)$aoa_stats$Mean_train,2)),bty="n",cex=0.75)
+
+
+
+#par(fig=c(0,0.7,0,0.7), new=TRUE)
+par(fig=c(0.51,1,0,1),new=TRUE)
 plot(trainDat_weights[,"A"],
      trainDat_weights[,"B"],col=cols_fold[as.numeric(trainDat_weights$fold)],pch=16,xlab="Predictor A (scaled and weighted)",ylab="Predictor B (scaled and weighted)",
       xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
@@ -217,14 +265,19 @@ lines(c(trainDat_weights[firstpoint,"A"],trainDat_weights[whichIsMin,"A"]),
         c(trainDat_weights[firstpoint,"B"],trainDat_weights[whichIsMin,"B"]))
 text(trainDat_weights[firstpoint,"A"],trainDat_weights[firstpoint,"B"],paste0("dist=",round(mindist,2),", DI= ",round(mindist/attributes(newdat_aoa)$aoa_stats$Mean_train,2)),pos=3)
 legend("topleft",pch=c(rep(16,3),1),col=c(cols_fold,"red"),legend=c("Fold 1","Fold 2","Fold 3","Example"),bty="n")
-legend("topright",legend=paste0("Average mean distance between\nall training data = ", round(attributes(newdat_aoa)$aoa_stats$Mean_train,2)),bty="n",cex=0.5)
+#legend("topright",legend=paste0("Average mean distance between\nall training data = ", round(attributes(newdat_aoa)$aoa_stats$Mean_train,2)),bty="n",cex=0.5)
 
-par(fig=c(0.65,1,0,0.7),new=TRUE)
+#par(fig=c(0.65,1,0,0.7),new=TRUE)
 
- boxplot(attributes(newdat_aoa)$TrainDI,ylab="DI of training data")
+par(fig=c(0.77,0.99,0.34,0.99), new=TRUE)
+par(mgp=c(1,0.39,0))
+
+ boxplot(attributes(newdat_aoa)$TrainDI,cex.axis=0.6,cex.lab=0.5,ylab="",yaxt="n")
+ axis(side = 2, at = c(0,0.2,0.4,0.6),cex.axis=0.6)
     abline(boxplot.stats(attributes(newdat_aoa)$TrainDI)$stats[5],0,col=alpha("blue",0.5),lwd=2)
-    text(1.27,boxplot.stats(attributes(newdat_aoa)$TrainDI)$stats[5],
-         "AOA-threshold",pos=1,col=alpha("blue",0.5),cex=0.48)
+    title(ylab="DI of training data", line=1.5,cex.lab=0.6)
+    text(0.7,boxplot.stats(attributes(newdat_aoa)$TrainDI)$stats[5],
+         "AOA\nthreshold",pos=3,col=alpha("blue",0.5),cex=0.5)
  dev.off()
 ```
  
