@@ -45,7 +45,7 @@ simulateResponse <- c("bio2","bio5","bio10", "bio13",
 studyarea <- c(-15, 65, 30, 75) # extent of study area. Default: Europe
 seed <- 1 
 var1="bio1"
-var2="bio13"
+var2="bio19"
 ```
 
 
@@ -85,6 +85,16 @@ weights <- t(varImp(model,scale=F)$importance)
 ```{r newdat,include = FALSE}
 newdat_orig <- data.frame("A"=seq(min(values(predictors[[var1]]),na.rm=T),max(values(predictors[[var1]]),na.rm=T),length.out=100),
                     "B"=seq(min(values(predictors[[var2]]),na.rm=T),max(values(predictors[[var2]]),na.rm=T),length.out=100))
+
+
+
+newdat_orig <- data.frame("A"=seq(min(trainDat$A)-0.7*mean(trainDat$A),
+                                  max(trainDat$A)+0.7*mean(trainDat$A),
+                                  length.out = 100),
+                          "B"=seq(min(trainDat$B)-0.7*mean(trainDat$B),
+                                  max(trainDat$B)+0.7*mean(trainDat$B),
+                                  length.out = 100))
+
 newdat_orig <- expand.grid(newdat_orig[,1],newdat_orig[,2])
 names(newdat_orig) <- c("A","B")
 
@@ -96,66 +106,61 @@ alldat <- data.frame(newdat_orig,"pred"=newdat_pred,
 
 trainDat_scaled<- scale(trainDat[,c("A","B")])
 scaleparam <- attributes(trainDat_scaled)
-newdat <- scale(newdat_orig,center=scaleparam$`scaled:center`,                   scale=scaleparam$`scaled:scale`)
+newdat_scaled <- scale(newdat_orig,center=scaleparam$`scaled:center`,                   scale=scaleparam$`scaled:scale`)
 
 trainDat_weights <- data.frame(trainDat_scaled[,"A"]*weights[,"A"],
 trainDat_scaled[,"B"]*weights[,"B"])
 names(trainDat_weights) <- c("A","B")
-newdat[,"A"] <- newdat[,"A"]*weights[,"A"]
-newdat[,"B"] <- newdat[,"B"]*weights[,"B"]
+newdat <- newdat_scaled
+newdat[,"A"] <- newdat_scaled[,"A"]*weights[,"A"]
+newdat[,"B"] <- newdat_scaled[,"B"]*weights[,"B"]
 ```
 
 # Create Sample data, scale and weight them
 
 
 ```{r Fig_weightedData,include = FALSE}
-pdf("../figures/concept_figures/weightedData.pdf",width=6,height=5)
+pdf("../figures/concept_figures/weightedData.pdf",width=11,height=5.5)
 newpoint <- 7030
 
-#par(fig=c(0,0.5,0,1), new=TRUE)
-par(fig=c(0,1,0,1), new=TRUE,mar=c(4,4,4,4))
+par(fig=c(0,0.49,0,1), new=TRUE,mar=c(4,4,4,4))
+#par(fig=c(0,1,0,1), new=TRUE,mar=c(4,4,4,4))
 plot(trainDat[,"A"],trainDat[,"B"],pch=16,
      xlim=c(min(newdat_orig[,"A"]),max(newdat_orig[,"A"])),
      ylim=c(min(newdat_orig[,"B"]),max(newdat_orig[,"B"])),
       xlab="Predictor A",ylab="Predictor B")
-#points(newdat_orig[newpoint,"A"],newdat_orig[newpoint,"B"],pch=4,col="red")
 legend("topleft",pch=c(16,4),col=c("black"),legend=
          c("Training samples"),bty="n")
 
-#legend("topleft",pch=c(16,4),col=c("black","red"),legend=
-#         c("Training samples","New data point (example)"),bty="n")
-
-
 par(new = TRUE)
+plot(trainDat_scaled[,"A"],
+     trainDat_scaled[,"B"],pch=16,xlab="",ylab="",
+     xlim=c(min(newdat_scaled[,"A"]),max(newdat_scaled[,"A"])),
+     ylim=c(min(newdat_scaled[,"B"]),max(newdat_scaled[,"B"])),axes=F)
+Axis(side = 3, x = trainDat_scaled[,"A"])
+Axis(side = 4, x = trainDat_scaled[,"B"],las=1)
+mtext("Predictor A (scaled)", side = 3,line=3)
+#mtext("Predictor B (scaled)", side = 4,line=3)
+
+corners = par("usr")
+par(xpd = TRUE) #Draw outside plot area
+text(x = corners[2]+1, y = mean(corners[3:4]), "Predictor B (scaled)", srt = 270,line=3)
+
+
+par(fig=c(0.51,1,0,1),new=TRUE,mar=c(4,4,4,4))
 plot(trainDat_weights[,"A"],
-     trainDat_weights[,"B"],pch=16,
-     xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
-     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])),axes=F,xlab="",ylab="")
-Axis(side = 3, x = trainDat_weights[,"A"])
-Axis(side = 4, x = trainDat_weights[,"B"])
-mtext("Predictor A (scaled and weighted)", side = 3,line=3)
-mtext("Predictor B (scaled and weighted)", side = 4,line=3)
+     trainDat_weights[,"B"],
+      xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
+     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])),
+     xlab="Predictor A (scaled and weighted)",ylab="Predictor B (scaled and weighted)",pch=16,asp=1)
 
 
-
-#par(fig=c(0.26,0.49,0.53,0.98), new=TRUE)
-#par(mgp=c(1,0.4,0))
-par(fig=c(0.5,0.98,0.54,0.98), new=TRUE)
-#par(mgp=c(1,0.4,0))
+par(mgp=c(1,0.4,0))
+par(fig=c(0.54,0.79,0.6,0.97), new=TRUE)
 barplot(unlist(t(data.frame(varImp(model,scale=F)$importance))),horiz=T,xlab="",cex.axis=0.75,cex.names=0.75)
-title(xlab="Importance", line=1.8,cex.lab=0.75,adj=0)
+title(xlab="Importance", line=1.2,cex.lab=0.75,adj=0)
 
-#par(mgp=c(3,1,0))
-#par(fig=c(0.51,1,0,1),new=TRUE)
-#plot(trainDat_weights[,"A"],
-#     trainDat_weights[,"B"],
-#     xlab="Predictor A (scaled and weighted)",ylab="Predictor B (scaled and weighted)",pch=16,
-#      xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
-#     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])))
 
-#points(newdat[newpoint,"A"],newdat[newpoint,"B"],pch=4,col="red")
-#legend("topleft",pch=c(16,4),col=c("black","red"),legend=
-#         c("Training samples","New data point (example)"),bty="n")
 dev.off()
 ```
 
@@ -210,12 +215,12 @@ for (i in 1:nrow(trainDat_weights[,1:2])){
 
 ```{r Fig_DIOfTraining,include = FALSE}
 
-pdf("../figures/concept_figures/DI_training.pdf",width=10,height=5)
+pdf("../figures/concept_figures/DI_training.pdf",width=10,height=5.7)
 par(fig=c(0,0.5,0,1), new=TRUE)
 plot(trainDat_weights[,"A"],
      trainDat_weights[,"B"],col=cols_fold[as.numeric(trainDat_weights$fold)],pch=16,xlab="Predictor A (scaled and weighted)",ylab="Predictor B (scaled and weighted)",
       xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
-     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])))
+     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])),asp=1)
 
 points(trainDat_weights[firstpoint,"A"],trainDat_weights[firstpoint,"B"],pch=1,col="red")
 
@@ -236,7 +241,7 @@ points(trainDat_weights[firstpoint,"A"],trainDat_weights[firstpoint,"B"],pch=1,c
 legend("topleft",pch=c(rep(16,3),1),col=c(cols_fold,"red"),legend=c("Fold 1","Fold 2","Fold 3","Example"),bty="n")
 
 legend("topright",legend=paste0("Mean distance for example =", round(
-                                trainDist_mean[firstpoint],2),"\nAverage mean distance between\nall training data =",round(attributes(newdat_aoa)$aoa_stats$Mean_train,2)),bty="n",cex=0.75)
+                                trainDist_mean[firstpoint],2),"\nAverage mean distance between\nall training data =",round(attributes(newdat_aoa)$aoa_stats$Mean_train,2)),bty="n",cex=0.7)
 
 
 
@@ -245,26 +250,26 @@ par(fig=c(0.51,1,0,1),new=TRUE)
 plot(trainDat_weights[,"A"],
      trainDat_weights[,"B"],col=cols_fold[as.numeric(trainDat_weights$fold)],pch=16,xlab="Predictor A (scaled and weighted)",ylab="Predictor B (scaled and weighted)",
       xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
-     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])))
+     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])),asp=1)
 
 points(trainDat_weights[firstpoint,"A"],trainDat_weights[firstpoint,"B"],pch=1,col="red")
 
 lines(c(trainDat_weights[firstpoint,"A"],trainDat_weights[whichIsMin,"A"]),
         c(trainDat_weights[firstpoint,"B"],trainDat_weights[whichIsMin,"B"]))
-text(trainDat_weights[firstpoint,"A"],trainDat_weights[firstpoint,"B"],paste0("dist=",round(mindist,2),", DI= ",round(mindist/attributes(newdat_aoa)$aoa_stats$Mean_train,2)),pos=3)
+text(trainDat_weights[whichIsMin,"A"],trainDat_weights[whichIsMin,"B"],paste0("dist=",round(mindist,2),", \nDI= ",round(mindist/attributes(newdat_aoa)$aoa_stats$Mean_train,2)),pos=2,cex=0.75)
 legend("topleft",pch=c(rep(16,3),1),col=c(cols_fold,"red"),legend=c("Fold 1","Fold 2","Fold 3","Example"),bty="n")
 #legend("topright",legend=paste0("Average mean distance between\nall training data = ", round(attributes(newdat_aoa)$aoa_stats$Mean_train,2)),bty="n",cex=0.5)
 
 #par(fig=c(0.65,1,0,0.7),new=TRUE)
 
-par(fig=c(0.77,0.99,0.34,0.99), new=TRUE)
-par(mgp=c(1,0.39,0))
+par(fig=c(0.79,1,0.34,1), new=TRUE)
+par(mgp=c(1,0.49,0))
 
- boxplot(attributes(newdat_aoa)$TrainDI,cex.axis=0.6,cex.lab=0.5,ylab="",yaxt="n")
+ boxplot(attributes(newdat_aoa)$TrainDI$DI,cex.axis=0.6,cex.lab=0.5,ylab="",yaxt="n")
  axis(side = 2, at = c(0,0.2,0.4,0.6),cex.axis=0.6)
-    abline(boxplot.stats(attributes(newdat_aoa)$TrainDI)$stats[5],0,col=alpha("blue",0.5),lwd=2)
+    abline(boxplot.stats(attributes(newdat_aoa)$TrainDI$DI)$stats[5],0,col=alpha("blue",0.5),lwd=2)
     title(ylab="DI of training data", line=1.5,cex.lab=0.6)
-    text(0.7,boxplot.stats(attributes(newdat_aoa)$TrainDI)$stats[5],
+    text(0.7,boxplot.stats(attributes(newdat_aoa)$TrainDI$DI)$stats[5],
          "AOA\nthreshold",pos=3,col=alpha("blue",0.5),cex=0.5)
  dev.off()
 ```
@@ -293,18 +298,19 @@ for (i in 1:nrow(trainDat_weights[,1:2])){
 }
 
 
-pdf("../figures/concept_figures/DI.pdf",width=5.5,height=5)
+pdf("../figures/concept_figures/DI.pdf",width=5,height=5.7)
 plot(trainDat_weights[,"A"],
      trainDat_weights[,"B"],pch=16,xlab="Predictor A (scaled and weighted)",ylab="Predictor B (scaled and weighted)",
       xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
-     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])))
+     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])),asp=1)
 
 
 lines(c(newdat[newpoint,"A"],trainDat_weights[whichIsMin,"A"]),
         c(newdat[newpoint,"B"],trainDat_weights[whichIsMin,"B"]))
 points(newdat[newpoint,"A"],newdat[newpoint,"B"],pch=4,col="red")
 text(newdat[newpoint,"A"],newdat[newpoint,"B"],
-     paste0("dist=",round(mindist,2),", DI=",round(mindist/attributes(newdat_aoa)$aoa_stats$Mean_train,2)),pos=4)
+     paste0("dist=",round(mindist,2),", \nDI=",round(mindist/attributes(newdat_aoa)$aoa_stats$Mean_train,2)),pos=2,cex=0.75)
+
 legend("topleft",pch=c(16,4),col=c("black","red"),legend=c("Training samples","A new data point"),bty="n")
 legend("topright",legend=paste0("Average mean distance between\nall training data = ", round(attributes(newdat_aoa)$aoa_stats$Mean_train,2)),bty="n",cex=0.5)
 dev.off()
@@ -320,14 +326,16 @@ include_graphics("../figures/concept_figures/DI.pdf")
 
 ```{r Fig_DI_and_AOA,include = FALSE}
 
- pdf("../figures/concept_figures/AOA.pdf",width=10,height=5)
+ pdf("../figures/concept_figures/AOA.pdf",width=10,height=5.5)
  par(mfrow=c(1,2))
 alldat$order = findInterval(alldat$aoa.DI, sort(alldat$aoa.DI))
 
 plot(alldat$A,alldat$B,pch=15,col=viridis(nrow(alldat))[alldat$order],
-     xlab="Predictor A",ylab="Predictor B")
-text(250,345,"DI",cex = 0.75)
-color.legend(250,250,260,330,round(c(min(alldat$aoa.DI),alldat$aoa.DI[alldat$order==nrow(alldat)*0.5],alldat$aoa.DI[alldat$order==nrow(alldat)*0.75],max(alldat$aoa.DI)),1),
+     xlab="Predictor A",ylab="Predictor B",
+    xlim=c(min(newdat_orig[,"A"]),max(newdat_orig[,"A"])),
+     ylim=c(min(newdat_orig[,"B"]),max(newdat_orig[,"B"])))
+text(285,600,"DI",cex = 0.75)
+color.legend(275,400,300,570,round(c(min(alldat$aoa.DI),alldat$aoa.DI[alldat$order==nrow(alldat)*0.5],alldat$aoa.DI[alldat$order==nrow(alldat)*0.75],max(alldat$aoa.DI)),1),
 viridis(nrow(alldat))[c(1,nrow(alldat)*0.5,nrow(alldat)*0.75,nrow(alldat))],gradient="y",cex = 0.75)
 
 
@@ -338,10 +346,12 @@ legend("topleft",pch=c(16),col=c("black"),legend=c("Training samples"),bty="n")
 
 #alldat$order = findInterval(alldat$pred, sort(alldat$pred))
 plot(alldat$A,alldat$B,pch=15,col=viridis(nrow(alldat))[alldat$order],
-     xlab="Predictor A",ylab="Predictor B")
-points(alldat$A,alldat$B,pch=16,col=c("white","transparent")[alldat$aoa.AOA+1],cex=1.5)
-text(250,345,"DI",cex = 0.75)
-color.legend(250,250,260,330,round(c(min(alldat$aoa.DI),alldat$aoa.DI[alldat$order==nrow(alldat)*0.5],alldat$aoa.DI[alldat$order==nrow(alldat)*0.75],max(alldat$aoa.DI)),1),
+     xlab="Predictor A",ylab="Predictor B",
+         xlim=c(min(newdat_orig[,"A"]),max(newdat_orig[,"A"])),
+     ylim=c(min(newdat_orig[,"B"]),max(newdat_orig[,"B"])))
+points(alldat$A,alldat$B,pch=16,col=c("white","transparent")[alldat$aoa.AOA+1],cex=1.1)
+text(285,600,"DI",cex = 0.75)
+color.legend(275,400,300,570,round(c(min(alldat$aoa.DI),alldat$aoa.DI[alldat$order==nrow(alldat)*0.5],alldat$aoa.DI[alldat$order==nrow(alldat)*0.75],max(alldat$aoa.DI)),1),
 viridis(nrow(alldat))[c(1,nrow(alldat)*0.5,nrow(alldat)*0.75,nrow(alldat))],gradient="y",cex = 0.75)
 
 points(trainDat[,"A"],trainDat[,"B"],pch=16)
@@ -376,13 +386,13 @@ include_graphics("../figures/concept_figures/AOA.pdf")
 ```{r Fig_thresholds,include = FALSE}
 
 pdf("../figures/concept_figures/threshold_thoughts.pdf")
- boxplot(attributes(newdat_aoa)$TrainDI,ylab="DI of train data")
+ boxplot(attributes(newdat_aoa)$TrainDI$DI,ylab="DI of train data")
  abline(attributes(newdat_aoa)$aoa_stats$threshold,0,col="red")
  abline(attributes(newdat_aoa)$aoa_stats$threshold_stats[6],0,col="red",lty=2)
   abline(attributes(newdat_aoa)$aoa_stats$threshold_stats[7],0,col="red",lty=3)
  
  
-  abline(boxplot.stats(attributes(newdat_aoa)$TrainDI)$stats[5],0,col="blue")
+  abline(boxplot.stats(attributes(newdat_aoa)$TrainDI$DI)$stats[5],0,col="blue")
   legend("bottomright",lty=c(1,2,3,1),col=c("red","red","red","blue"),legend=c("0.95 quantile","0.99 quantile","1.00 quantile","upper whisker"),bty="n")
  dev.off()
 

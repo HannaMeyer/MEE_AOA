@@ -40,17 +40,29 @@ The settings specified here are used for the case study published in the paper. 
 
 Note: To reproduce results used in the paper use the following settings:
 
-* Default Case study with random data: npoints=50,clustered=FALSE,meansPCA= c(3, -1), sdPCA=c(2, 2),simulateResponse=c("bio2","bio5","bio10", "bio13","bio14","bio19"),studyarea=c(-15, 65, 30, 75), seed=10
+* Default Case study with random data: npoints=50,design="random",meansPCA= c(3, -1), sdPCA=c(2, 2),simulateResponse=c("bio2","bio5","bio10", "bio13","bio14","bio19"),studyarea=c(-15, 65, 30, 75), seed=10
 
-* Case Study with clustered data: npoints=500,nlusters=50,clustered=TRUE,
+* Case Study with clustered data: npoints=500,nlusters=50,design="clustered",
 maxdist <- 0.6, meansPCA= c(3, -1), sdPCA=c(2, 2), simulateResponse=c("bio2","bio5","bio10", "bio13","bio14", "bio19"), studyarea=c(-15, 65, 30, 75), seed=10
+
+
+Further interesting settings:
+
+* Case Study biased with outlier: npoints=50,design="biasedWithOutlier",countries = c("Germany","Ireland","France", "Sweden"), countriesOutlier= "Turkmenistan"
+maxdist <- 0.6, meansPCA= c(3, -1), sdPCA=c(2, 2), simulateResponse=c("bio2","bio5","bio10", "bio13","bio14", "bio19"), studyarea=c(-15, 65, 30, 75), seed=10
+
+* Case Study biased: same as biased with outlier but without the outlier
 
 
 ```{r settings}
 npoints <- 50 # number of training samples
-clustered <- FALSE #TRUE clustered design
-nlusters <- 50 #number of clusters if design=clustered
-maxdist <- 0.6 #maxdist for clustered samples if design=clustered
+
+design <- "biasedWithOutlier"  # either clustered,biased,random, biasedWithOutlier
+
+countries <- c("Germany","Ireland","France", "Sweden") #if design==biased
+countriesOutlier <- "Turkmenistan" #if design==biasedWithOutlier A single point is set here
+nlusters <- 50 #number of clusters if design==clustered
+maxdist <- 0.6 #maxdist for clustered samples if design==clustered
 meansPCA <- c(3, -1) # means of the gaussian response functions to the 2 axes
 sdPCA <- c(2, 2) # sd's of the gaussian response functions to the 2 axes
 simulateResponse <- c("bio2","bio5","bio10", "bio13",
@@ -80,6 +92,27 @@ The virtual response variable is created based on the PCA of a subset of bioclim
 ```{r variables,message = FALSE}
 response <- generateSpFromPCA(predictors[[simulateResponse]],
                               means = meansPCA,sds = sdPCA, plot=F)$suitab.raster
+
+
+
+#polynomial.function=function(x,a,b,c,d){
+#  a + b*x + c*x^2+d*x^3
+#}
+#my.responses <- formatFunctions(bio1 = c(fun = "polynomial.function",a=-3,b=-0.004634,c=0.0002963,d=-0.000001111),
+                                # bio19 =  c(fun = 'betaFun', p1 = 200, p2 = 700, alpha = 0.9, gamma = #0.08))
+
+#my.parameters <- formatFunctions(bio1 = c(fun = 'dnorm', mean = 0, sd = 50),
+#                                 bio12 = c(fun = 'dnorm', mean = 2000, sd = 2000),
+#                                 bio19 =  c(fun = 'betaFun', p1 = 400, p2 = 500, alpha = 0.9, gamma = 0.08))
+
+# Generation of the virtual species
+#simulateResponse<- c("bio1","bio19")
+#response <- generateSpFromFun(raster.stack = predictors[[simulateResponse]],
+#                                 parameters = my.responses,species.type="multiplicative")$suitab.raster
+
+
+#predictors <- predictors[[simulateResponse]] #??!!
+
 ```
 
 ## Simulate training points
@@ -110,13 +143,26 @@ csample <- function(x,n,nclusters,maxdist,seed){
 ```{r samplepoints, message = FALSE, warning=FALSE}
 mask <- rasterToPolygons(mask,dissolve=TRUE)
 set.seed(seed)
-if (clustered){
+if (design=="clustered"){
   samplepoints <- csample(mask,npoints,nlusters,maxdist=maxdist,seed=seed)
+} 
+if (design=="biased"){
+  countryboundaries <- getData("countries", path='../data/')
+  countryboundaries <- countryboundaries[countryboundaries$NAME_ENGLISH%in%c(countries),]
+  samplepoints <- spsample(countryboundaries,npoints,"random")
+}
+if (design=="biasedWithOutlier"){
+  countryboundaries <- getData("countries", path='../data/')
+  countryboundariesOut <- countryboundaries[countryboundaries$NAME_ENGLISH%in%c(countriesOutlier),]
+    countryboundaries <- countryboundaries[countryboundaries$NAME_ENGLISH%in%c(countries),]
+  samplepoints <- spsample(countryboundaries,npoints,"random")
+  samplepoints <- rbind(samplepoints,spsample(countryboundariesOut,1,"random"))
+}  
   
-  
-}else{
+if (design=="random"){
   samplepoints <- spsample(mask,npoints,"random")
 }
+
 
 ```
 
@@ -156,7 +202,7 @@ To prepare model training, predictor variables are extracted for the location of
 trainDat <- extract(predictors,samplepoints,df=TRUE)
 trainDat$response <- extract (response,samplepoints)
 
-if (clustered){
+if (design=="clustered"){
   trainDat <- merge(trainDat,samplepoints,by.x="ID",by.y="ID")
 }
 
@@ -168,27 +214,27 @@ Model training is then done using the caret package. Note that other packages wo
 
 ```{r training}
 set.seed(seed)
-if(!clustered){
+if(design!="clustered"){
 model <- train(trainDat[,names(predictors)],
                trainDat$response,
                method="rf",
                importance=TRUE,
                tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
-               trControl = trainControl(method="cv"))
+               trControl = trainControl(method="cv",savePredictions = TRUE))
 
 
 print("random cross-validation performance:")
 print(model)
 }
 #if data are clustered, clustered CV is used:
-if(clustered){
+if(design=="clustered"){
   folds <- CreateSpacetimeFolds(trainDat, spacevar="clstrID",k=nlusters)
   model <- train(trainDat[,names(predictors)],
                  trainDat$response,
                      method="rf",
                  importance=TRUE,
                  tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
-                 trControl = trainControl(method="cv",index=folds$index))
+                 trControl = trainControl(method="cv",index=folds$index,savePredictions = TRUE))
   print("leave-cluster-out cross-validation performance:")
   print(model)
   
@@ -197,7 +243,7 @@ if(clustered){
                method="rf",
                importance=TRUE,
                tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
-               trControl = trainControl(method="cv"))
+               trControl = trainControl(method="cv",savePredictions = TRUE))
   print("random cross-validation performance:")
 print(model_random)
 }
@@ -234,15 +280,38 @@ The area of applicability and the dissimilarity index are then calculated. First
 ```{r uncert,message=FALSE}
 
 #with variable weighting:
-AOA <- aoa(predictors,model=model)
+AOA <- aoa(predictors,model=model,returnTrainDI = TRUE)
 #without weighting:
 AOA_noWeights <- aoa(predictors,train=trainDat,variables = names(predictors))
 
-if (clustered){
+if (design=="clustered"){
   AOA_random<- aoa(predictors, model_random)
 }
 
+preds <- model$pred[model$pred$mtry==model$bestTune$mtry,]
+absError <- abs(preds$pred[order(preds$rowIndex)]-preds$obs[order(preds$rowIndex)])
+
+
+predtrain <- predict(model$finalModel,trainDat,predict.all=TRUE) 
+sdpred <-  apply(predtrain$individual,1,sd)
 ```
+
+```{r plotDIRel,message=FALSE, echo=FALSE}
+cairo_pdf("../figures/TrainDIRel.pdf", width=9, height=4.5)
+par(mfrow=c(1,2),mar=c(5,5,2,2))
+plot(attributes(AOA)$TrainDI$DI,absError,ylab="True absolute prediction error \n(based on cross validation)",xlab="DI of training data")
+abline(lm(absError~attributes(AOA)$TrainDI$DI),col="red")
+plot(attributes(AOA)$TrainDI$meanDist,sdpred,xlab="Mean distance to other training data points",ylab="Standard deviations of predictions")
+abline(lm(sdpred~attributes(AOA)$TrainDI$meanDist),col="red")
+invisible(dev.off())
+```
+
+
+
+```{r figsDIerror, echo=FALSE, out.width="75%",fig.cap="Relationship between the DI of the training data and the true prediction error (a) as well as the relationship between the mean distance to other data points (as a indicator for data point density) and the standard deviations of predictions (b)."}
+include_graphics("../figures/TrainDIRel.pdf")
+```
+
 
 # Standard deviation from individual trees for comparison
 
@@ -366,6 +435,10 @@ paste0("RMSE outside AOA= ",rmse(values(response),values(predictionNOTAOI)))
 
 ```
 
+## Standard deviations of predictions within the AOA
+```{r lm_SDwithinAOA}
+spplot(compare$sd,col.regions=viridis(100))+spplot(AOA$AOA,col.regions=c("violetred","transparent"))
+```
 
 ## If applicable: Comparison random vs spatial CV and AOA estimation
 
@@ -373,7 +446,7 @@ paste0("RMSE outside AOA= ",rmse(values(response),values(predictionNOTAOI)))
 #clusteredness into account 
 #should be comparable to random CV error
 ```{r lm_uncert_sp}
-if(clustered){
+if(design=="clustered"){
   prediction_random <- predict(predictors,model_random)
   
 predictionAOI <- prediction_random
@@ -392,7 +465,7 @@ print(paste0("RMSE outside AOA= ",rmse(values(response),values(predictionNOTAOI)
 ```
 
 ```{r compare_spatial,echo=FALSE}
-if (clustered){
+if (design=="clustered"){
 p <- list()
 p[[1]] <-  spplot(AOA$DI,col.regions = cols,
             sp.layout=list(list("sp.points", samplepoints, col = "red", first = FALSE),list("sp.text", c(-12,72), "a")))
@@ -409,7 +482,31 @@ invisible(dev.off())
 ```
 
 ```{r figs6, echo=FALSE, out.width="100%",fig.cap="Comparison between spatial vs non spatial estimation of the AOA"}
-if(clustered){
+if(design=="clustered"){
   include_graphics("../figures/caseStudy_SPvsRandom.png")
 }
+```
+
+## User-defined AOA by a proficiency threshold
+here set to a abs error of 0.05.
+```{r userAOA,echo=FALSE}
+
+
+cairo_pdf("../figures/aoathresholds.pdf", width=7, height=5)
+newAOA <- update_aoa(AOA,model,proficiency = 0.05)
+invisible(dev.off())
+
+png("../figures/newaoa.png",width=10, height=10,units = "cm",res=300)
+sp::spplot(prediction, col.regions=viridis(100))+sp::spplot(newAOA$AOA$AOA,col.regions=c("violetred","transparent"))
+invisible(dev.off())
+```
+
+
+```{r figsnewaoa2, echo=FALSE, out.width="100%",fig.cap=""}
+include_graphics("../figures/aoathresholds.pdf")
+```
+
+```{r figsnewaoa, echo=FALSE, out.width="100%",fig.cap=""}
+include_graphics("../figures/newaoa.png")
+
 ```

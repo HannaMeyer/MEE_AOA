@@ -42,35 +42,58 @@ dev.off()
 
 performanceAOA <- c()
 performanceNOTAOA <- c()
-for (thres in c(25,50,75,90,95,99,100)){
+
+potentialthres <-unique(substr(names(dat)[grep("PredErrorAOA_R2",names(dat))],17,24))
+
+for (thres in potentialthres){
 performanceAOA <- rbind(performanceAOA,data.frame("thres"=thres,
-                                                  "ME"=me(dat$model_RMSE,dat[,paste0("PredErrorAOA_RMSE_",thres,"%")])))
+                                                  "ME"=me(dat$model_RMSE,dat[,paste0("PredErrorAOA_RMSE_",thres)])))
 performanceNOTAOA <- rbind(performanceNOTAOA,data.frame("thres"=thres,
-                                                        "ME"=me(dat$model_RMSE,dat[,paste0("PredErrorNOTAOA_RMSE_",thres,"%")])))
+                                                        "ME"=me(dat$model_RMSE,dat[,paste0("PredErrorNOTAOA_RMSE_",thres)])))
 }
 # ideal threshold:
-thres <- performanceAOA$thres[which(performanceAOA$ME==min(abs(0-performanceAOA$ME)))]
-
+bestthres <- performanceAOA$thres[which(performanceAOA$ME==min(abs(0-performanceAOA$ME)))]
+print(bestthres)
 
 #### How well does the model CV error represents the prediction error inside and outside the AOA?
-pdf("../figures/comparison_modelRuns_scatter.pdf",width=9,height=5)
+
+for (thres in potentialthres){
+pdfname<-sub("%","",paste0("../figures/comparison_modelRuns_scatter_",thres,".pdf"))
+pdf(pdfname,width=9,height=5)
 par(mfrow=c(1,2))
 
-lim <- c(min(c(dat$model_RMSE,dat[,paste0("PredErrorAOA_RMSE_",thres,"%")])),
-         max(c(dat$model_RMSE,dat[,paste0("PredErrorAOA_RMSE_",thres,"%")])))
-plot(dat$model_RMSE~dat[,paste0("PredErrorAOA_RMSE_",thres,"%")],
+lim <- c(min(c(dat$model_RMSE,dat[,paste0("PredErrorAOA_RMSE_",thres)])),
+         max(c(dat$model_RMSE,dat[,paste0("PredErrorAOA_RMSE_",thres)])))
+plot(dat$model_RMSE~dat[,paste0("PredErrorAOA_RMSE_",thres)],
      xlim=lim,ylim=lim,
      xlab="RMSE prediction (AOA)",ylab="RMSE model CV")
-points(caseStudy$model_RMSE~caseStudy[,paste0("PredErrorAOA_RMSE_",thres,"%")],col="red",pch=16)
+points(caseStudy$model_RMSE~caseStudy[,paste0("PredErrorAOA_RMSE_",thres)],col="red",pch=16)
 legend("topleft",legend="a",bty="n")
 abline(0,1)
-lim <- c(min(c(dat$model_RMSE,dat[,paste0("PredErrorNOTAOA_RMSE_",thres,"%")]),na.rm=T),
-         max(c(dat$model_RMSE,dat[,paste0("PredErrorNOTAOA_RMSE_",thres,"%")]),na.rm=T))
-plot(dat$model_RMSE~dat[,paste0("PredErrorNOTAOA_RMSE_",thres,"%")],
+lim <- c(min(c(dat$model_RMSE,dat[,paste0("PredErrorNOTAOA_RMSE_",thres)]),na.rm=T),
+         max(c(dat$model_RMSE,dat[,paste0("PredErrorNOTAOA_RMSE_",thres)]),na.rm=T))
+plot(dat$model_RMSE~dat[,paste0("PredErrorNOTAOA_RMSE_",thres)],
      xlim=lim,ylim=lim,
      xlab="RMSE prediction (outside AOA)",ylab="RMSE model CV")
-points(caseStudy$model_RMSE~caseStudy[,paste0("PredErrorNOTAOA_RMSE_",thres,"%")],col="red",pch=16)
+points(caseStudy$model_RMSE~caseStudy[,paste0("PredErrorNOTAOA_RMSE_",thres)],col="red",pch=16)
 legend("topleft",legend="b",bty="n")
 abline(0,1)
 dev.off()
+}
 
+
+boxplot(dat[,c(which(names(dat)%in%c("model_RMSE")),
+               which(grepl("PredErrorAOA_RMSE_",names(dat))))],
+        names = c("CV",potentialthres),
+        main="True prediction error inside AOA",ylim=c(0,1),
+        col=c("blue",rep("grey",length(grepl("PredErrorAOA_RMSE_",names(dat))))))
+par(new=TRUE)
+boxplot(dat[,c(which(names(dat)%in%c("model_RMSE")),which(grepl("PredErrorNOTAOA_RMSE_",names(dat))))],
+        names = c("CV",potentialthres),main="True prediction error outside AOA",ylim=c(0,1),
+        col=c("blue",rep("orange",length(grepl("PredErrorAOA_RMSE_",names(dat))))))
+#abline(h=1.5,v=1.5)                  
+
+abline(mean(dat$model_RMSE),0,col="blue")      
+legend("topleft",
+       col=c("blue","grey","orange"),
+pch=15,legend=c("CV","AOA","outside AOA"),bty="n")
