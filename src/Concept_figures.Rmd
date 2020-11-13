@@ -114,6 +114,9 @@ names(trainDat_weights) <- c("A","B")
 newdat <- newdat_scaled
 newdat[,"A"] <- newdat_scaled[,"A"]*weights[,"A"]
 newdat[,"B"] <- newdat_scaled[,"B"]*weights[,"B"]
+
+newpoint <- 5010
+
 ```
 
 # Create Sample data, scale and weight them
@@ -121,7 +124,6 @@ newdat[,"B"] <- newdat_scaled[,"B"]*weights[,"B"]
 
 ```{r Fig_weightedData,include = FALSE}
 pdf("../figures/concept_figures/weightedData.pdf",width=11,height=5.5)
-newpoint <- 7030
 
 par(fig=c(0,0.49,0,1), new=TRUE,mar=c(4,4,4,4))
 #par(fig=c(0,1,0,1), new=TRUE,mar=c(4,4,4,4))
@@ -178,7 +180,7 @@ include_graphics("../figures/concept_figures/weightedData.pdf")
 cols_fold <- c("blue","green","orange")
 firstpoint <- 119
 
-trainDat_weights$fold <- substr(model$pred$Resample,5,5)
+trainDat_weights$fold <- substr(model$pred$Resample,5,5)[order(model$pred$rowIndex)]
 tmp <- NA
 for (i in 1:nrow(trainDat_weights[,1:2])){
   mindist <- dist(rbind(trainDat_weights[firstpoint,1:2],trainDat_weights[i,1:2]))
@@ -206,6 +208,19 @@ for (i in 1:nrow(trainDat_weights[,1:2])){
     trainDist_mean <- c(trainDist_mean,mean(trainDist,na.rm=T))
     trainDist_min <- c(trainDist_min,min(trainDist,na.rm=T))
   }
+  
+  
+  ### calculate the DI of a new data point
+  tmp <- NA
+for (i in 1:nrow(trainDat_weights[,1:2])){
+  mindist_new <- dist(rbind(newdat[newpoint,1:2],trainDat_weights[i,1:2]))
+  mindist_new <- pmin(mindist_new,tmp,na.rm=T)
+  if(i>1&&mindist_new<tmp){
+    whichIsMin <- i
+  }
+  tmp <- mindist_new
+}
+
 
 
 ```
@@ -215,14 +230,15 @@ for (i in 1:nrow(trainDat_weights[,1:2])){
 
 ```{r Fig_DIOfTraining,include = FALSE}
 
-pdf("../figures/concept_figures/DI_training.pdf",width=10,height=5.7)
-par(fig=c(0,0.5,0,1), new=TRUE)
+pdf("../figures/concept_figures/DI_training.pdf",width=15,height=5.7)
+par(fig=c(0,0.355,0,1), new=TRUE,mar=c(4,4,1,1))
 plot(trainDat_weights[,"A"],
      trainDat_weights[,"B"],col=cols_fold[as.numeric(trainDat_weights$fold)],pch=16,xlab="Predictor A (scaled and weighted)",ylab="Predictor B (scaled and weighted)",
       xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
      ylim=c(min(newdat[,"B"]),max(newdat[,"B"])),asp=1)
 
 points(trainDat_weights[firstpoint,"A"],trainDat_weights[firstpoint,"B"],pch=1,col="red")
+mtext("a", 2, adj=2, las=1,padj=-19)
 
 
 for (i in 1:nrow(trainDat_weights)){
@@ -246,31 +262,57 @@ legend("topright",legend=paste0("Mean distance for example =", round(
 
 
 #par(fig=c(0,0.7,0,0.7), new=TRUE)
-par(fig=c(0.51,1,0,1),new=TRUE)
+par(fig=c(0.355,0.68,0,1),new=TRUE,mar=c(4,1,1,1))
 plot(trainDat_weights[,"A"],
-     trainDat_weights[,"B"],col=cols_fold[as.numeric(trainDat_weights$fold)],pch=16,xlab="Predictor A (scaled and weighted)",ylab="Predictor B (scaled and weighted)",
+     trainDat_weights[,"B"],col=cols_fold[as.numeric(trainDat_weights$fold)],pch=16,xlab="Predictor A (scaled and weighted)",ylab="",
       xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
-     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])),asp=1)
-
+     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])),asp=1,yaxt="n")
+mtext("b", 2, adj=2, las=1,padj=-19)
 points(trainDat_weights[firstpoint,"A"],trainDat_weights[firstpoint,"B"],pch=1,col="red")
 
 lines(c(trainDat_weights[firstpoint,"A"],trainDat_weights[whichIsMin,"A"]),
         c(trainDat_weights[firstpoint,"B"],trainDat_weights[whichIsMin,"B"]))
-text(trainDat_weights[whichIsMin,"A"],trainDat_weights[whichIsMin,"B"],paste0("dist=",round(mindist,2),", \nDI= ",round(mindist/attributes(newdat_aoa)$aoa_stats$Mean_train,2)),pos=2,cex=0.75)
+text(trainDat_weights[whichIsMin,"A"],trainDat_weights[whichIsMin,"B"],paste0("dist=",round(mindist,2),", \nDI= ",round(mindist/attributes(newdat_aoa)$aoa_stats$Mean_train,2)),pos=2,cex=0.85)
 legend("topleft",pch=c(rep(16,3),1),col=c(cols_fold,"red"),legend=c("Fold 1","Fold 2","Fold 3","Example"),bty="n")
 #legend("topright",legend=paste0("Average mean distance between\nall training data = ", round(attributes(newdat_aoa)$aoa_stats$Mean_train,2)),bty="n",cex=0.5)
 
-#par(fig=c(0.65,1,0,0.7),new=TRUE)
 
-par(fig=c(0.79,1,0.34,1), new=TRUE)
+
+#par(fig=c(0.79,1,0.34,1), new=TRUE)
+par(fig=c(0.57,0.68,0.44,1), new=TRUE)
+
 par(mgp=c(1,0.49,0))
 
  boxplot(attributes(newdat_aoa)$TrainDI$DI,cex.axis=0.6,cex.lab=0.5,ylab="",yaxt="n")
- axis(side = 2, at = c(0,0.2,0.4,0.6),cex.axis=0.6)
+ axis(side = 2, at = c(0,0.2,0.4,0.6),cex.axis=0.7)
     abline(boxplot.stats(attributes(newdat_aoa)$TrainDI$DI)$stats[5],0,col=alpha("blue",0.5),lwd=2)
     title(ylab="DI of training data", line=1.5,cex.lab=0.6)
     text(0.7,boxplot.stats(attributes(newdat_aoa)$TrainDI$DI)$stats[5],
-         "AOA\nthreshold",pos=3,col=alpha("blue",0.5),cex=0.5)
+         "AOA\nthreshold",pos=3,col=alpha("blue",0.5),cex=0.7)
+    
+
+    
+    
+par(fig=c(0.68,1,0,1),new=TRUE,mar=c(4,1,1,1),mgp=c(3, 1, 0))    
+    
+    
+    plot(trainDat_weights[,"A"],
+     trainDat_weights[,"B"],pch=16,xlab="Predictor A (scaled and weighted)",ylab="",
+      xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
+     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])),asp=1,yaxt="n")
+mtext("c", 2, adj=2, las=1,padj=-19)
+
+lines(c(newdat[newpoint,"A"],trainDat_weights[whichIsMin,"A"]),
+        c(newdat[newpoint,"B"],trainDat_weights[whichIsMin,"B"]))
+points(newdat[newpoint,"A"],newdat[newpoint,"B"],pch=4,col="red")
+text(newdat[newpoint,"A"],newdat[newpoint,"B"],
+     paste0("dist=",round(mindist_new,2),", \nDI=",round(mindist_new/attributes(newdat_aoa)$aoa_stats$Mean_train,2)),pos=2,cex=0.85)
+
+legend("topleft",pch=c(16,4),col=c("black","red"),legend=c("Training samples","A new data point"),bty="n")
+#legend("topright",legend=paste0("Average mean distance between\nall training data = ", round(attributes(newdat_aoa)$aoa_stats$Mean_train,2)),bty="n",cex=0.5)    
+    
+    
+    
  dev.off()
 ```
  
@@ -285,40 +327,6 @@ include_graphics("../figures/concept_figures/DI_training.pdf")
 
 
 
-# Calculate the DI of a new point
-```{r Fig_Distance2Nearest,include = FALSE}
-tmp <- NA
-for (i in 1:nrow(trainDat_weights[,1:2])){
-  mindist <- dist(rbind(newdat[newpoint,1:2],trainDat_weights[i,1:2]))
-  mindist <- pmin(mindist,tmp,na.rm=T)
-  if(i>1&&mindist<tmp){
-    whichIsMin <- i
-  }
-  tmp <- mindist
-}
-
-
-pdf("../figures/concept_figures/DI.pdf",width=5,height=5.7)
-plot(trainDat_weights[,"A"],
-     trainDat_weights[,"B"],pch=16,xlab="Predictor A (scaled and weighted)",ylab="Predictor B (scaled and weighted)",
-      xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
-     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])),asp=1)
-
-
-lines(c(newdat[newpoint,"A"],trainDat_weights[whichIsMin,"A"]),
-        c(newdat[newpoint,"B"],trainDat_weights[whichIsMin,"B"]))
-points(newdat[newpoint,"A"],newdat[newpoint,"B"],pch=4,col="red")
-text(newdat[newpoint,"A"],newdat[newpoint,"B"],
-     paste0("dist=",round(mindist,2),", \nDI=",round(mindist/attributes(newdat_aoa)$aoa_stats$Mean_train,2)),pos=2,cex=0.75)
-
-legend("topleft",pch=c(16,4),col=c("black","red"),legend=c("Training samples","A new data point"),bty="n")
-legend("topright",legend=paste0("Average mean distance between\nall training data = ", round(attributes(newdat_aoa)$aoa_stats$Mean_train,2)),bty="n",cex=0.5)
-dev.off()
-```
-
-```{r figs2, echo=FALSE,out.width="100%",fig.cap="the DI for a new data point is then estimated by calculating the distance to the closest training point in the predictor space. This distance is divided by the average of mean distances between all training data."}
-include_graphics("../figures/concept_figures/DI.pdf")
-```
 
 
  
@@ -387,13 +395,13 @@ include_graphics("../figures/concept_figures/AOA.pdf")
 
 pdf("../figures/concept_figures/threshold_thoughts.pdf")
  boxplot(attributes(newdat_aoa)$TrainDI$DI,ylab="DI of train data")
- abline(attributes(newdat_aoa)$aoa_stats$threshold,0,col="red")
+ abline(attributes(newdat_aoa)$aoa_stats$threshold_stats[5],0,col="red")
  abline(attributes(newdat_aoa)$aoa_stats$threshold_stats[6],0,col="red",lty=2)
   abline(attributes(newdat_aoa)$aoa_stats$threshold_stats[7],0,col="red",lty=3)
  
  
-  abline(boxplot.stats(attributes(newdat_aoa)$TrainDI$DI)$stats[5],0,col="blue")
-  legend("bottomright",lty=c(1,2,3,1),col=c("red","red","red","blue"),legend=c("0.95 quantile","0.99 quantile","1.00 quantile","upper whisker"),bty="n")
+  abline(attributes(newdat_aoa)$aoa_stats$threshold,0,col="blue")
+  legend("bottomright",lty=c(1,2,3,1),col=c("red","red","red","blue"),legend=c("0.95 quantile","0.99 quantile","1.00 quantile","1.5*IQR"),bty="n")
  dev.off()
 
 ```
@@ -402,3 +410,62 @@ pdf("../figures/concept_figures/threshold_thoughts.pdf")
 include_graphics("../figures/concept_figures/threshold_thoughts.pdf")
 ```
 
+## Full range of training data covered
+
+```{r Fig_rangecovered,include = FALSE}
+
+
+pdf("../figures/concept_figures/fullgradientcovered.pdf",width=9,height=5)
+par(mfrow=c(1,2))
+
+grid <- expand.grid("x"=seq(0,11,0.1),"y"=seq(0,11,0.1))
+smpl <- data.frame("x"=c(1:10,rep(1,9)),"y"=c(rep(1,9),1:10))
+AOA <- aoa(grid,train = smpl)
+
+
+plot(grid,col=AOA$AOA,pch=15,yaxs="i",xaxs="i",
+     xlab="Predictor A",ylab="Predictor B")
+points(smpl,col="red",pch=15)
+legend("topright",pt.bg=c("black","white","red"),
+       legend=c("inside AOA","ouside AOA","training data"),
+       pch=22,col="black")
+
+smpl <-  expand.grid("x"=seq(1,10,3),"y"=seq(1,10,3))
+AOA <- aoa(grid,train = smpl)
+
+plot(grid,col=AOA$AOA,pch=15,yaxs="i",xaxs="i",
+     xlab="Predictor A",ylab="Predictor B")
+points(smpl,col="red",pch=15)
+legend("topright",pt.bg=c("black","white","red"),
+       legend=c("inside AOA","ouside AOA","training data"),
+       pch=22,col="black",bg = "white")
+dev.off()
+```
+
+```{r figs_fullgradient, echo=FALSE,out.width="100%",fig.cap=""}
+include_graphics("../figures/concept_figures/fullgradientcovered.pdf")
+```
+
+## Why can't we use the distance to all data points?
+
+```{r Fig_dist2all,include = FALSE}
+
+pdf("../figures/concept_figures/dist2allpoints.pdf",width=7,height=7)
+dat <- data.frame("x"=c(runif(100,1,10),runif(100,9,10),runif(100,1,10),runif(100,1,2)),
+                  "y"=c(runif(100,1,2),runif(100,1,10),runif(100,9,10),runif(100,1,10)))
+plot(dat$x,dat$y,xlim=c(0,11),ylim=c(0,11),xlab="Predictor A",ylab="Predictor B")
+points(5.5,5.5,pch=4,col="red",cex=3)
+legend("topleft",pch=c(1,4),legend=c("training data","new data point"),
+       col=c("black","red"),bty="n")
+legend("topright",legend=paste0("mean distance between points = ",round(mean(dist(dat)),2)),bty="n")
+
+dist_new <- mean(FNN::knnx.dist(data.frame("x"=5.5,"y"=5.5),dat,k=1))
+text(5.5,5.5,paste0("mean distance to all \ntrainig points = ",round(dist_new,2)),
+     pos=1)
+dev.off()
+```
+
+
+```{r figs_dist2allpoints, echo=FALSE,out.width="100%",fig.cap=""}
+include_graphics("../figures/concept_figures/dist2allpoints.pdf")
+```

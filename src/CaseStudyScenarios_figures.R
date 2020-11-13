@@ -25,7 +25,8 @@ boxplot(dat$model_RMSE-dat$`PredErrorAOA_RMSE_25%`,
         dat$model_RMSE-dat$`PredErrorAOA_RMSE_95%`,
         dat$model_RMSE-dat$`PredErrorAOA_RMSE_99%`,
         dat$model_RMSE-dat$`PredErrorAOA_RMSE_100%`,
-        names=c("0.25","0.50","0.75","0.90","0.95","0.99","1.00"),
+        dat$model_RMSE-dat$PredErrorAOA_RMSE_default,
+        names=c("0.25","0.50","0.75","0.90","0.95","0.99","1.00","default"),
         notch=T,ylab="ME",xlab="threshold")
 
 points(colMeans(data.frame(dat$model_RMSE-dat$`PredErrorAOA_RMSE_25%`,
@@ -34,7 +35,8 @@ points(colMeans(data.frame(dat$model_RMSE-dat$`PredErrorAOA_RMSE_25%`,
                            dat$model_RMSE-dat$`PredErrorAOA_RMSE_90%`,
                            dat$model_RMSE-dat$`PredErrorAOA_RMSE_95%`,
                            dat$model_RMSE-dat$`PredErrorAOA_RMSE_99%`,
-                           dat$model_RMSE-dat$`PredErrorAOA_RMSE_100%`),
+                           dat$model_RMSE-dat$`PredErrorAOA_RMSE_100%`,
+                           dat$model_RMSE-dat$PredErrorAOA_RMSE_default),
                 na.rm = TRUE),pch=16)
 abline(0,0,lwd=2)
 dev.off()
@@ -44,6 +46,7 @@ performanceAOA <- c()
 performanceNOTAOA <- c()
 
 potentialthres <-unique(substr(names(dat)[grep("PredErrorAOA_R2",names(dat))],17,24))
+potentialthres <- potentialthres[1:9]
 
 for (thres in potentialthres){
 performanceAOA <- rbind(performanceAOA,data.frame("thres"=thres,
@@ -52,7 +55,7 @@ performanceNOTAOA <- rbind(performanceNOTAOA,data.frame("thres"=thres,
                                                         "ME"=me(dat$model_RMSE,dat[,paste0("PredErrorNOTAOA_RMSE_",thres)])))
 }
 # ideal threshold:
-bestthres <- performanceAOA$thres[which(performanceAOA$ME==min(abs(0-performanceAOA$ME)))]
+bestthres <- performanceAOA$thres[which(abs(performanceAOA$ME)==min(abs(0-performanceAOA$ME)))]
 print(bestthres)
 
 #### How well does the model CV error represents the prediction error inside and outside the AOA?

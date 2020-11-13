@@ -10,8 +10,16 @@ library(virtualspecies,lib.loc="/home/h/hmeyer1/R/")
 library(caret,lib.loc="/home/h/hmeyer1/R/")
 library(CAST,lib.loc="/home/h/hmeyer1/R/")
 
+
+design <- c("biasedWithOutlier","clustered","biased","random")#, biasedWithOutlier
+countries <- c("Germany","Ireland","France", "Sweden") #if design==biased
+countriesOutlier <- "Turkmenistan" #if design==biasedWithOutlier A single point is set here
+nlusters <- 50 #number of clusters if design==clustered
+maxdist <- 0.6 #maxdist for clustered samples if 
+
 npoints <- c(25,50,75,100) # number of training samples
-seed <- c(10,20,30)
+#seed <- c(10,20,30)
+seed <- c(10,20)
 meansPCA <- as.list(as.data.frame(t(expand.grid(c(1,2,3),c(-1,0,1)))))
 sdPCA <-  as.list(as.data.frame(t(expand.grid(c(1,2,3),c(1,2,3)))))
 
@@ -29,7 +37,8 @@ mask <- rasterToPolygons(mask,dissolve=TRUE)
 ## Start running trhough each setting
 settings <- expand.grid("npoints"=npoints,
                         "meansPCA"=meansPCA,
-                        "sdPCA"=sdPCA,"seed"=seed)
+                        "sdPCA"=sdPCA,"seed"=seed,
+                        "design"=design)
 resultsTable <- settings
 
 for (setting in 1:nrow(settings)){
@@ -43,18 +52,86 @@ for (setting in 1:nrow(settings)){
                                 means = meansPCA,
                                 sds = sdPCA,
                                 plot=F)$suitab.raster
+  
+  ### for clustered sampling
+  csample <- function(x,n,nclusters,maxdist,seed){
+    set.seed(seed)
+    cpoints <- sp::spsample(x, n = nclusters, type="random")
+    result <- cpoints
+    result$clstrID <- 1:length(cpoints)
+    for (i in 1:length(cpoints)){
+      ext <- rgeos::gBuffer(cpoints[i,], width = maxdist)
+      newsamples <- sp::spsample(ext, n = (n-nclusters)/nclusters, 
+                                 type="random")
+      newsamples$clstrID <- rep(i,length(newsamples))
+      result <- rbind(result,newsamples)
+      
+    }
+    result$ID <- 1:nrow(result)
+    return(result)
+  }
+  ###
   set.seed(seed)
-  samplepoints <- spsample(mask,npoints,"random")
+  if (design=="clustered"){
+    samplepoints <- csample(mask,npoints,nlusters,maxdist=maxdist,seed=seed)
+  } 
+  if (design=="biased"){
+    countryboundaries <- getData("countries")
+    countryboundaries <- countryboundaries[countryboundaries$NAME_ENGLISH%in%c(countries),]
+    samplepoints <- spsample(countryboundaries,npoints,"random")
+  }
+  if (design=="biasedWithOutlier"){
+    countryboundaries <- getData("countries")
+    countryboundariesOut <- countryboundaries[countryboundaries$NAME_ENGLISH%in%c(countriesOutlier),]
+    countryboundaries <- countryboundaries[countryboundaries$NAME_ENGLISH%in%c(countries),]
+    samplepoints <- spsample(countryboundaries,npoints,"random")
+    samplepoints <- rbind(samplepoints,spsample(countryboundariesOut,1,"random"))
+  }  
+  
+  if (design=="random"){
+    samplepoints <- spsample(mask,npoints,"random")
+  }
 
   # Model training and prediction
 
   trainDat <- extract(predictors,samplepoints,df=TRUE)
+  
+  if (design=="clustered"){
+    trainDat <- merge(trainDat,samplepoints,by.x="ID",by.y="ID")
+  }
+  
   trainDat$response <- extract (response,samplepoints)
   trainDat <- trainDat[complete.cases(trainDat),]
   set.seed(seed)
-  model <- train(trainDat[,names(predictors)],trainDat$response,
-                 method="rf",importance=TRUE,tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
-                 trControl = trainControl(method="cv"))
+  
+  
+  set.seed(seed)
+  if(design!="clustered"){
+    model <- train(trainDat[,names(predictors)],
+                   trainDat$response,
+                   method="rf",
+                   importance=TRUE,
+                   tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
+                   trControl = trainControl(method="cv",savePredictions = TRUE))
+    
+    
+    print("random cross-validation performance:")
+    print(model)
+  }
+  #if data are clustered, clustered CV is used:
+  if(design=="clustered"){
+    folds <- CreateSpacetimeFolds(trainDat, spacevar="clstrID",k=nlusters)
+    model <- train(trainDat[,names(predictors)],
+                   trainDat$response,
+                   method="rf",
+                   importance=TRUE,
+                   tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
+                   trControl = trainControl(method="cv",index=folds$index,savePredictions = TRUE))
+
+  }
+ # model <- train(trainDat[,names(predictors)],trainDat$response,
+#                 method="rf",importance=TRUE,tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
+ #                trControl = trainControl(method="cv"))
 
   ## Prediction and error calculation
 
