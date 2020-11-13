@@ -57,7 +57,7 @@ maxdist <- 0.6, meansPCA= c(3, -1), sdPCA=c(2, 2), simulateResponse=c("bio2","bi
 ```{r settings}
 npoints <- 50 # number of training samples
 
-design <- "biasedWithOutlier"  # either clustered,biased,random, biasedWithOutlier
+design <- "random"  # either clustered,biased,random, biasedWithOutlier
 
 countries <- c("Germany","Ireland","France", "Sweden") #if design==biased
 countriesOutlier <- "Turkmenistan" #if design==biasedWithOutlier A single point is set here
@@ -384,18 +384,31 @@ The general relationship is then visualized via scatterplots, linear models betw
 dat_all <- data.frame("true_abs_error"=values(truediff),                    "type"=rep("DI",length(values(AOA$DI))), 
                       "value"=values(AOA$DI))
 th <- attributes(AOA)$aoa_stats$threshold
+
+newAOA <- update_aoa(AOA,model,proficiency = 0.05)
+dat2 <- data.frame("DI"=attributes(AOA)$TrainDI$DI,
+                   "error"=absError)
+
+
 png("../figures/hexbin.png", width=12, height=10,units="cm",res=300)
-ggplot(dat_all, aes(value,true_abs_error)) +
+p1 <- ggplot(dat_all, aes(value,true_abs_error)) +
   stat_binhex(bins=100)+
   ylab("True absolute error")+
   xlab("Dissimilarity Index")+
-  geom_vline(xintercept=th)+
+  #geom_vline(xintercept=th)+
+  geom_vline(xintercept=th,linetype="dashed",col="red")+
   scale_fill_gradientn(name = "data points",
                        trans = "log",
                        breaks = 10^(0:3),
-                       colors=viridis(10))+
-  theme_bw()
+                       colors=viridis(10, alpha=.7))+
+  theme_bw()+
+  geom_point(data=dat2,aes(DI,error))#+
+  #stat_smooth(data=dat2,aes(DI,error),method="lm")
+
+
+
 invisible(dev.off())
+
 
 ```
 
@@ -491,14 +504,20 @@ if(design=="clustered"){
 here set to a abs error of 0.05.
 ```{r userAOA,echo=FALSE}
 
-
-cairo_pdf("../figures/aoathresholds.pdf", width=7, height=5)
 newAOA <- update_aoa(AOA,model,proficiency = 0.05)
+cairo_pdf("../figures/aoathresholds.pdf", width=12, height=5)
+p2 <- attributes(newAOA)$update_aoa+xlab("Dissimilarity Index")+ylab("True absolute error")
+grid.arrange(p1, p2, ncol = 2)
+
 invisible(dev.off())
 
 png("../figures/newaoa.png",width=10, height=10,units = "cm",res=300)
-sp::spplot(prediction, col.regions=viridis(100))+sp::spplot(newAOA$AOA$AOA,col.regions=c("violetred","transparent"))
+sp::spplot(prediction, col.regions=viridis(100))+sp::spplot(newAOA$AOA,col.regions=c("violetred","transparent"))
 invisible(dev.off())
+
+rmse(values(prediction)[values(AOA$AOA)==1],values(response)[values(AOA$AOA)==1],na.rm=T)
+rmse(values(prediction)[values(newAOA$AOA)==1],values(response)[values(newAOA$AOA)==1],na.rm=T)
+
 ```
 
 
