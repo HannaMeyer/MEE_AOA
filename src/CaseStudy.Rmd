@@ -42,7 +42,7 @@ Note: To reproduce results used in the paper use the following settings:
 
 * Default Case study with random data: npoints=50,design="random",meansPCA= c(3, -1), sdPCA=c(2, 2),simulateResponse=c("bio2","bio5","bio10", "bio13","bio14","bio19"),studyarea=c(-15, 65, 30, 75), seed=10
 
-* Case Study with clustered data: npoints=500,nlusters=50,design="clustered",
+* Case Study with clustered data: npoints=500,nclusters=50,design="clustered",
 maxdist <- 0.6, meansPCA= c(3, -1), sdPCA=c(2, 2), simulateResponse=c("bio2","bio5","bio10", "bio13","bio14", "bio19"), studyarea=c(-15, 65, 30, 75), seed=10
 
 
@@ -61,7 +61,7 @@ design <- "random"  # either clustered,biased,random, biasedWithOutlier
 
 countries <- c("Germany","Ireland","France", "Sweden") #if design==biased
 countriesOutlier <- "Turkmenistan" #if design==biasedWithOutlier A single point is set here
-nlusters <- 50 #number of clusters if design==clustered
+nclusters <- 50 #number of clusters if design==clustered
 maxdist <- 0.6 #maxdist for clustered samples if design==clustered
 meansPCA <- c(3, -1) # means of the gaussian response functions to the 2 axes
 sdPCA <- c(2, 2) # sd's of the gaussian response functions to the 2 axes
@@ -69,6 +69,7 @@ simulateResponse <- c("bio2","bio5","bio10", "bio13",
                       "bio14","bio19") # variables used to simulate the response
 studyarea <- c(-15, 65, 30, 75) # extent of study area. Default: Europe
 seed <- 10
+multiCV <- TRUE
 ```
 
 # Get data
@@ -90,28 +91,12 @@ values(mask)[!is.na(values(mask))] <- 1
 The virtual response variable is created based on the PCA of a subset of bioclim predictors. See the virtualspecies package for further information.
 
 ```{r variables,message = FALSE}
-response <- generateSpFromPCA(predictors[[simulateResponse]],
-                              means = meansPCA,sds = sdPCA, plot=F)$suitab.raster
+response_vs <- generateSpFromPCA(predictors[[simulateResponse]],
+                              means = meansPCA,sds = sdPCA, plot=F)
+
+response <- response_vs$suitab.raster
 
 
-
-#polynomial.function=function(x,a,b,c,d){
-#  a + b*x + c*x^2+d*x^3
-#}
-#my.responses <- formatFunctions(bio1 = c(fun = "polynomial.function",a=-3,b=-0.004634,c=0.0002963,d=-0.000001111),
-                                # bio19 =  c(fun = 'betaFun', p1 = 200, p2 = 700, alpha = 0.9, gamma = #0.08))
-
-#my.parameters <- formatFunctions(bio1 = c(fun = 'dnorm', mean = 0, sd = 50),
-#                                 bio12 = c(fun = 'dnorm', mean = 2000, sd = 2000),
-#                                 bio19 =  c(fun = 'betaFun', p1 = 400, p2 = 500, alpha = 0.9, gamma = 0.08))
-
-# Generation of the virtual species
-#simulateResponse<- c("bio1","bio19")
-#response <- generateSpFromFun(raster.stack = predictors[[simulateResponse]],
-#                                 parameters = my.responses,species.type="multiplicative")$suitab.raster
-
-
-#predictors <- predictors[[simulateResponse]] #??!!
 
 ```
 
@@ -144,7 +129,7 @@ csample <- function(x,n,nclusters,maxdist,seed){
 mask <- rasterToPolygons(mask,dissolve=TRUE)
 set.seed(seed)
 if (design=="clustered"){
-  samplepoints <- csample(mask,npoints,nlusters,maxdist=maxdist,seed=seed)
+  samplepoints <- csample(mask,npoints,nclusters,maxdist=maxdist,seed=seed)
 } 
 if (design=="biased"){
   countryboundaries <- getData("countries", path='../data/')
@@ -186,6 +171,10 @@ grid.text("b",x = unit(0.57, "npc"),
 
 
 invisible(dev.off())
+
+
+
+
 ```
 
 ```{r figs1, echo=FALSE,out.width="100%",fig.cap="Subset of the predictors as well as the response variable and the selected training data points"}
@@ -209,6 +198,27 @@ if (design=="clustered"){
 trainDat <- trainDat[complete.cases(trainDat),]
 ```
 
+```{r plottrdat}
+
+#pca_pred <- predict(response_vs$details$pca,trainDat[,response_vs$details$variables])
+
+#axes <- response_vs$details$axes
+#axes.to.plot <- axes[1:2]
+# xmin <- min(response_vs$details$pca$li[, axes.to.plot[1]]) - 0.3 * diff(range(response_vs$details$pca$li[, axes.to.plot[1]]))
+# xmax <- max(response_vs$details$pca$li[, axes.to.plot[1]])
+# 
+# pdf("../figures/plotresponse.pdf",width=6,height=6)
+# plotResponse(response_vs,no.plot.reset=T)
+# points(((pca_pred[,1]+10)/21.5),
+#        pca_pred[,2],pch=16)
+# dev.off()
+```
+
+```{r figs_plotres, echo=FALSE,out.width="100%",fig.cap="Subset of the predictors as well as the response variable and the selected training data points"}
+#include_graphics("../figures/plotresponse.pdf")
+```
+
+
 ## Training and cross-validation
 Model training is then done using the caret package. Note that other packages work as well as long as variable importance can be derived. The model output gives information on the general estimated model performance based on random cross validation.
 
@@ -228,7 +238,7 @@ print(model)
 }
 #if data are clustered, clustered CV is used:
 if(design=="clustered"){
-  folds <- CreateSpacetimeFolds(trainDat, spacevar="clstrID",k=nlusters)
+  folds <- CreateSpacetimeFolds(trainDat, spacevar="clstrID",k=nclusters)
   model <- train(trainDat[,names(predictors)],
                  trainDat$response,
                      method="rf",
@@ -377,45 +387,7 @@ include_graphics("../figures/caseStudy_PredRef.png")
 ```
 
 
-## Relationship with the true error
-The general relationship is then visualized via scatterplots, linear models between the true error and the DI and RMSE calculation
 
-```{r hexbin, warning=FALSE, message=FALSE, echo=FALSE}
-dat_all <- data.frame("true_abs_error"=values(truediff),                    "type"=rep("DI",length(values(AOA$DI))), 
-                      "value"=values(AOA$DI))
-th <- attributes(AOA)$aoa_stats$threshold
-
-newAOA <- update_aoa(AOA,model,proficiency = 0.05)
-dat2 <- data.frame("DI"=attributes(AOA)$TrainDI$DI,
-                   "error"=absError)
-
-
-png("../figures/hexbin.png", width=12, height=10,units="cm",res=300)
-p1 <- ggplot(dat_all, aes(value,true_abs_error)) +
-  stat_binhex(bins=100)+
-  ylab("True absolute error")+
-  xlab("Dissimilarity Index")+
-  #geom_vline(xintercept=th)+
-  geom_vline(xintercept=th,linetype="dashed",col="red")+
-  scale_fill_gradientn(name = "data points",
-                       trans = "log",
-                       breaks = 10^(0:3),
-                       colors=viridis(10, alpha=.7))+
-  theme_bw()+
-  geom_point(data=dat2,aes(DI,error))#+
-  #stat_smooth(data=dat2,aes(DI,error),method="lm")
-
-
-
-invisible(dev.off())
-
-
-```
-
-
-```{r figs5, echo=FALSE, out.width="50%",fig.cap="Relationship between the DI and the true error"}
-include_graphics("../figures/hexbin.png")
-```
 
 ## Comparison between prediction, error, DI and cross validation
 ```{r lm_uncert}
@@ -500,32 +472,142 @@ if(design=="clustered"){
 }
 ```
 
-## User-defined AOA by a proficiency threshold
-here set to a abs error of 0.05.
-```{r userAOA,echo=FALSE}
+## DI as a quantitative uncertainty measure?
 
-newAOA <- update_aoa(AOA,model,proficiency = 0.05)
-cairo_pdf("../figures/aoathresholds.pdf", width=12, height=5)
-p2 <- attributes(newAOA)$update_aoa+xlab("Dissimilarity Index")+ylab("True absolute error")
-grid.arrange(p1, p2, ncol = 2)
+### Relationship between the DI and the absolute error on a data-point-level
+
+```{r hexbin, warning=FALSE, message=FALSE, echo=FALSE}
+dat_all <- data.frame("true_abs_error"=values(truediff),                    "type"=rep("DI",length(values(AOA$DI))), 
+                      "value"=values(AOA$DI))
+th <- attributes(AOA)$aoa_stats$threshold
+
+dat2 <- data.frame("DI"=attributes(AOA)$TrainDI$DI,
+                   "error"=absError)
+
+
+png("../figures/hexbin.png", width=11, height=10,units="cm",res=300)
+ggplot(dat_all, aes(value,true_abs_error)) +
+  stat_binhex(bins=100)+
+  ylab("True absolute error")+
+  xlab("Dissimilarity Index")+
+  geom_vline(xintercept=th,linetype="dashed",col="red")+
+  scale_fill_gradientn(name = "data points",
+                       trans = "log",
+                       breaks = 10^(0:3),
+                       colors=viridis(10, alpha=.7))+
+  theme_bw()+
+ theme(legend.title = element_text( size = 10))+
+  geom_point(data=dat2,aes(DI,error))+
+  stat_smooth(data=dat2,aes(DI,error),method="lm",se = FALSE,col="red")
 
 invisible(dev.off())
 
-png("../figures/newaoa.png",width=10, height=10,units = "cm",res=300)
-sp::spplot(prediction, col.regions=viridis(100))+sp::spplot(newAOA$AOA,col.regions=c("violetred","transparent"))
+
+```
+
+
+
+```{r figs5, echo=FALSE, out.width="50%",fig.cap="Relationship between the DI and the true error"}
+include_graphics("../figures/hexbin.png")
+```
+
+
+### Relationship between the DI and the requested performance measure (here RMSE) 
+
+
+
+```{r userAOA_cv, warning=FALSE, message=FALSE, echo=FALSE,include=FALSE}
+
+
+AOA_new <- calibrate_aoa(AOA,model,window.size = 10,showPlot=FALSE)
+
+
+recl <- attributes(AOA_new)$calib$group_stats
+
+reference_perf <- as.data.frame(stack(AOA$DI,response,prediction))
+reference_perf <- reference_perf[order(reference_perf$DI),]
+names(reference_perf) <- c("DI","obs","pred")
+
+
+reference_perf$metric <- zoo::rollapply(reference_perf[,c("pred","obs")], width=1000,FUN=function(x){rmse(x[,1],x[,2])},
+                    by.column=F,align = "center",fill=NA)
+reference_perf <- reference_perf[reference_perf$DI<=max(recl$DI,na.rm=T),]
+
+cairo_pdf("../figures/AOA_calibrate_singleCV.pdf", width=6, height=5)
+plot(recl$DI,recl$RMSE,xlab="DI",ylab=model$metric)
+points(reference_perf$DI,reference_perf$metric,col="red")
+legend("topleft",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,NA,NA),col=c("black","red","black"),
+       legend=c("CV","Truth","model"),bty="n")
+  lines(seq(0,max(reference_perf$DI,na.rm=T),0.01),predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0,max(reference_perf$DI,na.rm=T),0.01))),lwd=1,lty=2,col="black")
+  
 invisible(dev.off())
 
-rmse(values(prediction)[values(AOA$AOA)==1],values(response)[values(AOA$AOA)==1],na.rm=T)
-rmse(values(prediction)[values(newAOA$AOA)==1],values(response)[values(newAOA$AOA)==1],na.rm=T)
 
+
+png("../figures/errormap_group_singleCV.png",width=24, height=9,units = "cm",res=300)
+#grid.arrange(p[[1]],p[[2]], p[[3]],ncol=3)
+stck <- stack(AOA_new$expectedError,mask(truediff,AOA_new$expectedError),
+             mask(compare$sd,AOA_new$expectedError))
+names(stck) <- c("expected_error","true_error","sd_of_predictions")
+spplot(stck,col.regions=viridis(100))+
+    sp::spplot(AOA_new$AOA,col.regions=c("violetred","transparent"))
+invisible(dev.off())
+```
+
+```{r figs7, echo=FALSE, out.width="100%",fig.cap=""}
+include_graphics("../figures/AOA_calibrate_singleCV.pdf")
 ```
 
 
-```{r figsnewaoa2, echo=FALSE, out.width="100%",fig.cap=""}
-include_graphics("../figures/aoathresholds.pdf")
+
+And the same but  including re-fitting and validation with leave-cluster-in-predictorspace-out CV.
+
+```{r userAOA_multicv, warning=FALSE, message=FALSE, echo=FALSE,include=FALSE}
+
+AOA_new <- calibrate_aoa(AOA,model,multiCV=multiCV,length.out = 10,window.size = 25,showPlot=FALSE)
+
+
+recl <- attributes(AOA_new)$calib$group_stats
+
+reference_perf <- as.data.frame(stack(AOA$DI,response,prediction))
+reference_perf <- reference_perf[order(reference_perf$DI),]
+names(reference_perf) <- c("DI","obs","pred")
+
+  reference_perf$metric <- zoo::rollapply(reference_perf[,c("pred","obs")], width=1000,FUN=function(x){rmse(x[,1],x[,2])},
+                    by.column=F,align = "center",fill=NA)
+
+  reference_perf <- reference_perf[reference_perf$DI<=max(recl$DI,na.rm=T),]
+  
+
+
+cairo_pdf("../figures/AOA_calibrate.pdf", width=6, height=5)
+plot(recl$DI,recl$RMSE,xlab="DI",ylab=model$metric)
+points(reference_perf$DI,reference_perf$metric,col="red")
+legend("topleft",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,NA,NA),col=c("black","red","black"),
+       legend=c("CV","Truth","model"),bty="n")
+lines(seq(0,max(reference_perf$DI,na.rm=T),0.01),predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0,max(reference_perf$DI,na.rm=T),0.01))),col="black",lty=2)
+invisible(dev.off())
+
+
+png("../figures/errormap_group.png",width=24, height=9,units = "cm",res=300)
+stck <- stack(AOA_new$expectedError,mask(truediff,AOA_new$expectedError),
+             mask(compare$sd,AOA_new$expectedError))
+names(stck) <- c("expected_error","true_error","sd_of_predictions")
+spplot(stck,col.regions=viridis(100))+
+    sp::spplot(AOA_new$AOA,col.regions=c("violetred","transparent"))
+invisible(dev.off())
 ```
 
-```{r figsnewaoa, echo=FALSE, out.width="100%",fig.cap=""}
-include_graphics("../figures/newaoa.png")
 
+```{r figs8, echo=FALSE, out.width="100%",fig.cap=""}
+include_graphics("../figures/AOA_calibrate.pdf")
 ```
+
+
+```{r figs9, echo=FALSE, out.width="100%",fig.cap=""}
+include_graphics("../figures/errormap_group.png")
+```
+
+
+
+
