@@ -306,21 +306,6 @@ predtrain <- predict(model$finalModel,trainDat,predict.all=TRUE)
 sdpred <-  apply(predtrain$individual,1,sd)
 ```
 
-```{r plotDIRel,message=FALSE, echo=FALSE}
-cairo_pdf("../figures/TrainDIRel.pdf", width=9, height=4.5)
-par(mfrow=c(1,2),mar=c(5,5,2,2))
-plot(attributes(AOA)$TrainDI$DI,absError,ylab="True absolute prediction error \n(based on cross validation)",xlab="DI of training data")
-abline(lm(absError~attributes(AOA)$TrainDI$DI),col="red")
-plot(attributes(AOA)$TrainDI$meanDist,sdpred,xlab="Mean distance to other training data points",ylab="Standard deviations of predictions")
-abline(lm(sdpred~attributes(AOA)$TrainDI$meanDist),col="red")
-invisible(dev.off())
-```
-
-
-
-```{r figsDIerror, echo=FALSE, out.width="75%",fig.cap="Relationship between the DI of the training data and the true prediction error (a) as well as the relationship between the mean distance to other data points (as a indicator for data point density) and the standard deviations of predictions (b)."}
-include_graphics("../figures/TrainDIRel.pdf")
-```
 
 
 # Standard deviation from individual trees for comparison
@@ -481,7 +466,7 @@ dat_all <- data.frame("true_abs_error"=values(truediff),                    "typ
                       "value"=values(AOA$DI))
 th <- attributes(AOA)$aoa_stats$threshold
 
-dat2 <- data.frame("DI"=attributes(AOA)$TrainDI$DI,
+dat2 <- data.frame("DI"=attributes(AOA)$TrainDI,
                    "error"=absError)
 
 
