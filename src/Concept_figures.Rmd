@@ -316,6 +316,7 @@ points(newdat[newpoint,"A"],newdat[newpoint,"B"],pch=4,col="red")
 text(newdat[newpoint,"A"],newdat[newpoint,"B"],
      paste0("dist=",round(mindist_new,2),", \nDI=",round(mindist_new/attributes(newdat_aoa)$aoa_stats$Mean_train,2)),pos=2,cex=0.85)
 
+
 legend("topleft",pch=c(16,4),col=c("black","red"),legend=c("Training samples","A new data point"),bty="n")
 #legend("topright",legend=paste0("Average mean distance between\nall training data = ", round(attributes(newdat_aoa)$aoa_stats$Mean_train,2)),bty="n",cex=0.5)    
     

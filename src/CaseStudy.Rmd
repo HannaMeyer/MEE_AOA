@@ -76,7 +76,7 @@ multiCV <- TRUE
 Bioclim data are downloaded and cropped to the study area.
 
 ```{r data, message = FALSE}
-predictors_global <- getData('worldclim', var='bio', res=10, path='../data/')
+predictors_global <- raster::getData('worldclim', var='bio', res=10, path='../data/')
 wp <- extent(studyarea)
 predictors <- crop(predictors_global,wp)
 
@@ -506,7 +506,6 @@ include_graphics("../figures/hexbin.png")
 
 AOA_new <- calibrate_aoa(AOA,model,window.size = 10,showPlot=FALSE)
 
-
 recl <- attributes(AOA_new)$calib$group_stats
 
 reference_perf <- as.data.frame(stack(AOA$DI,response,prediction))
@@ -514,13 +513,25 @@ reference_perf <- reference_perf[order(reference_perf$DI),]
 names(reference_perf) <- c("DI","obs","pred")
 
 
-reference_perf$metric <- zoo::rollapply(reference_perf[,c("pred","obs")], width=1000,FUN=function(x){rmse(x[,1],x[,2])},
-                    by.column=F,align = "center",fill=NA)
-reference_perf <- reference_perf[reference_perf$DI<=max(recl$DI,na.rm=T),]
+### do this for ul,ll of training data#
+slidingw <- attributes(AOA_new)$calib$group_stats
+reference_metric <- apply(slidingw,1,function(x){
+  x_df <- data.frame(t(x))
+  subs_ref <- reference_perf[reference_perf$DI>x_df$ll&
+                   reference_perf$DI<x_df$ul,]
+  rmse(subs_ref[,"pred"],subs_ref[,"obs"])
+})
+  
+
+
+#reference_perf$metric <- zoo::rollapply(reference_perf[,c("pred","obs")], width=5000,FUN=function(x){rmse(x[,1],x[,2])},
+#                    by.column=F,align = "center",fill=NA)
+#reference_perf <- reference_perf[reference_perf$DI<=max(recl$DI,na.rm=T),]
+
 
 cairo_pdf("../figures/AOA_calibrate_singleCV.pdf", width=6, height=5)
 plot(recl$DI,recl$RMSE,xlab="DI",ylab=model$metric)
-points(reference_perf$DI,reference_perf$metric,col="red")
+points(recl$DI,reference_metric,col="red")
 legend("topleft",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,NA,NA),col=c("black","red","black"),
        legend=c("CV","Truth","model"),bty="n")
   lines(seq(0,max(reference_perf$DI,na.rm=T),0.01),predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0,max(reference_perf$DI,na.rm=T),0.01))),lwd=1,lty=2,col="black")
@@ -558,16 +569,26 @@ reference_perf <- as.data.frame(stack(AOA$DI,response,prediction))
 reference_perf <- reference_perf[order(reference_perf$DI),]
 names(reference_perf) <- c("DI","obs","pred")
 
-  reference_perf$metric <- zoo::rollapply(reference_perf[,c("pred","obs")], width=1000,FUN=function(x){rmse(x[,1],x[,2])},
-                    by.column=F,align = "center",fill=NA)
+#  reference_perf$metric <- zoo::rollapply(reference_perf[,c("pred","obs")], width=5000,FUN=function(x){rmse(x[,1],x[,2])},
+ #                   by.column=F,align = "center",fill=NA)
 
-  reference_perf <- reference_perf[reference_perf$DI<=max(recl$DI,na.rm=T),]
+#  reference_perf <- reference_perf[reference_perf$DI<=max(recl$DI,na.rm=T),]
+ 
+slidingw <- attributes(AOA_new)$calib$group_stats
+reference_metric <- apply(slidingw,1,function(x){
+  x_df <- data.frame(t(x))
+  subs_ref <- reference_perf[reference_perf$DI>x_df$ll&
+                   reference_perf$DI<x_df$ul,]
+  rmse(subs_ref[,"pred"],subs_ref[,"obs"])
+})
   
+ 
+#saveRDS(recl,"test.RDS")
 
 
 cairo_pdf("../figures/AOA_calibrate.pdf", width=6, height=5)
 plot(recl$DI,recl$RMSE,xlab="DI",ylab=model$metric)
-points(reference_perf$DI,reference_perf$metric,col="red")
+points(recl$DI,reference_metric,col="red")
 legend("topleft",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,NA,NA),col=c("black","red","black"),
        legend=c("CV","Truth","model"),bty="n")
 lines(seq(0,max(reference_perf$DI,na.rm=T),0.01),predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0,max(reference_perf$DI,na.rm=T),0.01))),col="black",lty=2)
