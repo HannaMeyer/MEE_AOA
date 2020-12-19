@@ -29,7 +29,8 @@ library(gridExtra)
 library(knitr)
 library(grid)
 library(latticeExtra)
-library(hydroGOF)
+
+rmse <- function(pred,obs){sqrt( mean((pred - obs)^2, na.rm = TRUE) )}
 ```
 
 Settings for generating the predictors and response need to be defined, as well as the number of training data points and the seed used for all functions that involve randomness.
@@ -69,7 +70,6 @@ simulateResponse <- c("bio2","bio5","bio10", "bio13",
                       "bio14","bio19") # variables used to simulate the response
 studyarea <- c(-15, 65, 30, 75) # extent of study area. Default: Europe
 seed <- 10
-multiCV <- TRUE
 ```
 
 # Get data
@@ -125,7 +125,7 @@ csample <- function(x,n,nclusters,maxdist,seed){
 }
 ```
 
-```{r samplepoints, message = FALSE, warning=FALSE}
+```{r samplepoints, message = FALSE, warning=FALSE, include=FALSE}
 mask <- rasterToPolygons(mask,dissolve=TRUE)
 set.seed(seed)
 if (design=="clustered"){
@@ -152,7 +152,7 @@ if (design=="random"){
 ```
 
 
-```{r vis_data, messages = FALSE, echo = FALSE}
+```{r vis_data, messages = FALSE, echo = FALSE, include=FALSE}
 
 png("../figures/trainingdata.png", width=26, height=10,units = "cm",res=300)
 p1 <- spplot(stretch(predictors[[simulateResponse]],0,1),col.regions=viridis(100),
@@ -168,12 +168,7 @@ grid.text("a",x = unit(0.02, "npc"),
 grid.text("b",x = unit(0.57, "npc"), 
           y = unit(0.96, "npc"),
           just = "left")
-
-
 invisible(dev.off())
-
-
-
 
 ```
 
@@ -198,7 +193,7 @@ if (design=="clustered"){
 trainDat <- trainDat[complete.cases(trainDat),]
 ```
 
-```{r plottrdat}
+```{r plot_trdat}
 
 #pca_pred <- predict(response_vs$details$pca,trainDat[,response_vs$details$variables])
 
@@ -250,12 +245,13 @@ if(design=="clustered"){
   
   model_random <- train(trainDat[,names(predictors)],
                         trainDat$response,
-               method="rf",
-               importance=TRUE,
-               tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
-               trControl = trainControl(method="cv",savePredictions = TRUE))
+                        method="rf",
+                        importance=TRUE,
+                        tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
+                        trControl = trainControl(method="cv",savePredictions = TRUE))
+  
   print("random cross-validation performance:")
-print(model_random)
+  print(model_random)
 }
 ```
 
@@ -375,18 +371,24 @@ include_graphics("../figures/caseStudy_PredRef.png")
 
 
 ## Comparison between prediction, error, DI and cross validation
-```{r lm_uncert}
+```{r lm_uncert,echo=FALSE}
 
 #DI with weights:
-cor(values(truediff),values(AOA$DI),use="complete.obs")
+paste0("correlation coefficient (true error~DI)= ",
+cor(values(truediff),values(AOA$DI),use="complete.obs"))
 #DI no weights:
-cor(values(truediff),values(AOA_noWeights$DI),use="complete.obs")
+paste0("correlation coefficient (true error~DI estimated without weights)= ",
+cor(values(truediff),values(AOA_noWeights$DI),use="complete.obs"))
 
 #comparison prediction~ref
-summary(lm(values(response)~values(prediction)))$r.squared
-cor(values(response),values(prediction),use = "complete.obs")
+paste0("R² (prediction~reference)= ",
+summary(lm(values(response)~values(prediction)))$r.squared)
 
-rmse(values(response),values(prediction))
+paste0("r (prediction~reference)= ",
+cor(values(response),values(prediction),use = "complete.obs"))
+
+paste0("RMSE (prediction,reference)= ",
+rmse(values(response),values(prediction)))
 
 #comparison prediction for the AOA~ref
 print(attributes(AOA)$aoa_stats)
@@ -406,16 +408,28 @@ paste0("RMSE outside AOA= ",rmse(values(response),values(predictionNOTAOI)))
 ```
 
 ## Standard deviations of predictions within the AOA
-```{r lm_SDwithinAOA}
+
+The standard deviations of an ensemble are not helpful outside the AOA, however, inside the AOA they can provide helpful indicators of uncertainty, e.g. due to low data point densities.
+
+```{r lm_SDwithinAOA, include=FALSE}
+png("../figures/caseStudy_sdWithinAoa.png",width=10, height=10,units = "cm",res=300)
 spplot(compare$sd,col.regions=viridis(100))+spplot(AOA$AOA,col.regions=c("violetred","transparent"))
+invisible(dev.off())
 ```
+
+
+```{r figs_sd, echo=FALSE,out.width="100%",fig.cap="Standard deviations of the random forest ensemble within the AOA"}
+include_graphics("../figures/caseStudy_sdWithinAoa.png")
+```
+
+
 
 ## If applicable: Comparison random vs spatial CV and AOA estimation
 
-#...if clustered compare to default AOA without taking
-#clusteredness into account 
-#should be comparable to random CV error
-```{r lm_uncert_sp}
+```{r lm_uncert_sp, echo=FALSE}
+if(design!="clustered"){
+ print("not applicable here because no clustered design was chosen") 
+}
 if(design=="clustered"){
   prediction_random <- predict(predictors,model_random)
   
@@ -461,6 +475,11 @@ if(design=="clustered"){
 
 ### Relationship between the DI and the absolute error on a data-point-level
 
+Plotting the RMSE of cross-validated prodictions as well as the corresponding DI gives an impression about the error~DI relationship.
+This can also be visualized via hexbins for the true error~DI relationship.
+
+
+
 ```{r hexbin, warning=FALSE, message=FALSE, echo=FALSE}
 dat_all <- data.frame("true_abs_error"=values(truediff),                    "type"=rep("DI",length(values(AOA$DI))), 
                       "value"=values(AOA$DI))
@@ -486,25 +505,24 @@ ggplot(dat_all, aes(value,true_abs_error)) +
   stat_smooth(data=dat2,aes(DI,error),method="lm",se = FALSE,col="red")
 
 invisible(dev.off())
-
-
 ```
 
 
 
-```{r figs5, echo=FALSE, out.width="50%",fig.cap="Relationship between the DI and the true error"}
+```{r figs5, echo=FALSE, out.width="50%",fig.cap="Relationship between the DI and the true error for the cross-validated training data (black points) as well as for the entire spatial reference dataset (hexbins)"}
 include_graphics("../figures/hexbin.png")
 ```
 
 
 ### Relationship between the DI and the requested performance measure (here RMSE) 
 
-
+The relationship between error and DI can be used to limit predictioons to an area (within the AOA) where a required performance (e.g. RMSE, R2, Kappa, Accuracy) applies.
+This can be done using the result of calibrate_aoa which used the relationship analyzed in a window of DI values. The corresponding model (here: shape constrained additive models) can be used to estimate the performance on a pixel level, which then allows limiting predictions using a threshold.
 
 ```{r userAOA_cv, warning=FALSE, message=FALSE, echo=FALSE,include=FALSE}
 
 
-AOA_new <- calibrate_aoa(AOA,model,window.size = 10,showPlot=FALSE)
+AOA_new <- calibrate_aoa(AOA,model,window.size = 5,showPlot=FALSE)
 
 recl <- attributes(AOA_new)$calib$group_stats
 
@@ -513,7 +531,7 @@ reference_perf <- reference_perf[order(reference_perf$DI),]
 names(reference_perf) <- c("DI","obs","pred")
 
 
-### do this for ul,ll of training data#
+### do this for ul,ll of training data
 slidingw <- attributes(AOA_new)$calib$group_stats
 reference_metric <- apply(slidingw,1,function(x){
   x_df <- data.frame(t(x))
@@ -523,16 +541,10 @@ reference_metric <- apply(slidingw,1,function(x){
 })
   
 
-
-#reference_perf$metric <- zoo::rollapply(reference_perf[,c("pred","obs")], width=5000,FUN=function(x){rmse(x[,1],x[,2])},
-#                    by.column=F,align = "center",fill=NA)
-#reference_perf <- reference_perf[reference_perf$DI<=max(recl$DI,na.rm=T),]
-
-
 cairo_pdf("../figures/AOA_calibrate_singleCV.pdf", width=6, height=5)
 plot(recl$DI,recl$RMSE,xlab="DI",ylab=model$metric)
 points(recl$DI,reference_metric,col="red")
-legend("topleft",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,NA,NA),col=c("black","red","black"),
+legend("topleft",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,1,NA),col=c("black","red","black"),
        legend=c("CV","Truth","model"),bty="n")
   lines(seq(0,max(reference_perf$DI,na.rm=T),0.01),predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0,max(reference_perf$DI,na.rm=T),0.01))),lwd=1,lty=2,col="black")
   
@@ -550,17 +562,22 @@ spplot(stck,col.regions=viridis(100))+
 invisible(dev.off())
 ```
 
-```{r figs7, echo=FALSE, out.width="100%",fig.cap=""}
+```{r figs7, echo=FALSE, out.width="100%",fig.cap="Relationship between the cross-validated DI and the RMSE using the cross-validation folds already used during model training. The RMSE was estimated using predictions and observed values within a window of DI values."}
 include_graphics("../figures/AOA_calibrate_singleCV.pdf")
 ```
 
 
+#### Using muliple CV's
 
-And the same but  including re-fitting and validation with leave-cluster-in-predictorspace-out CV.
+The calibration shown above uses the cross-validion folds used during model training only. However, to be able to test the ability of the model to do both, interpolation and extrapolation, we suggest to test multiple cross-validations. Here, we split the data into folds by clusterin in the predictor space. We use all cross-validated predictions and DI values to then estimate the error~Di relationship.
+Since cross-validation is done with respect to extrapolation as well, the estimated AOA is in most cases larger compared to the application of a CV which is not explicitely testing for extrapolation.
+
+We compare the relationship estimated by cross-validation with the true relationship from the reference.
+
 
 ```{r userAOA_multicv, warning=FALSE, message=FALSE, echo=FALSE,include=FALSE}
 
-AOA_new <- calibrate_aoa(AOA,model,multiCV=multiCV,length.out = 10,window.size = 25,showPlot=FALSE)
+AOA_new <- calibrate_aoa(AOA,model,multiCV=TRUE,length.out = 10,window.size = 10,showPlot=FALSE)
 
 
 recl <- attributes(AOA_new)$calib$group_stats
@@ -569,11 +586,6 @@ reference_perf <- as.data.frame(stack(AOA$DI,response,prediction))
 reference_perf <- reference_perf[order(reference_perf$DI),]
 names(reference_perf) <- c("DI","obs","pred")
 
-#  reference_perf$metric <- zoo::rollapply(reference_perf[,c("pred","obs")], width=5000,FUN=function(x){rmse(x[,1],x[,2])},
- #                   by.column=F,align = "center",fill=NA)
-
-#  reference_perf <- reference_perf[reference_perf$DI<=max(recl$DI,na.rm=T),]
- 
 slidingw <- attributes(AOA_new)$calib$group_stats
 reference_metric <- apply(slidingw,1,function(x){
   x_df <- data.frame(t(x))
@@ -589,7 +601,7 @@ reference_metric <- apply(slidingw,1,function(x){
 cairo_pdf("../figures/AOA_calibrate.pdf", width=6, height=5)
 plot(recl$DI,recl$RMSE,xlab="DI",ylab=model$metric)
 points(recl$DI,reference_metric,col="red")
-legend("topleft",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,NA,NA),col=c("black","red","black"),
+legend("topleft",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,1,NA),col=c("black","red","black"),
        legend=c("CV","Truth","model"),bty="n")
 lines(seq(0,max(reference_perf$DI,na.rm=T),0.01),predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0,max(reference_perf$DI,na.rm=T),0.01))),col="black",lty=2)
 invisible(dev.off())
@@ -605,12 +617,12 @@ invisible(dev.off())
 ```
 
 
-```{r figs8, echo=FALSE, out.width="100%",fig.cap=""}
+```{r figs8, echo=FALSE, out.width="100%",fig.cap="Relationship between the cross-validated DI and the RMSE using multiple cross-validation folds (clusters in predictor space from few to many clusters). The RMSE was estimated using predictions and observed values within a window of DI values."}
 include_graphics("../figures/AOA_calibrate.pdf")
 ```
 
 
-```{r figs9, echo=FALSE, out.width="100%",fig.cap=""}
+```{r figs9, echo=FALSE, out.width="100%",fig.cap="Expected performance which can be used to limit predictions to areas where a required performance applies. For comparison, the true prediction error as well as the standard deviations of the Random forest ensemble are shown."}
 include_graphics("../figures/errormap_group.png")
 ```
 
