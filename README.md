@@ -1,5 +1,6 @@
 # Area of Applicability of spatial prediction models
 Case study material for the paper "Predicting into unknown space? Estimating the area of applicability of spatial prediction models".
+https://arxiv.org/abs/2005.07939
 
 * The case study described in the paper can be reproduced using the "CaseStudy.Rmd" in the src folder. 
 The results using different case study settings can be found in figures/caseStudyExamples.
