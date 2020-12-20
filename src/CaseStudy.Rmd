@@ -193,6 +193,7 @@ if (design=="clustered"){
 trainDat <- trainDat[complete.cases(trainDat),]
 ```
 
+#### Visualize Response
 ```{r plot_trdat}
 
 #pca_pred <- predict(response_vs$details$pca,trainDat[,response_vs$details$variables])
@@ -328,45 +329,6 @@ predsd <- RFsd(predictors,model)
 ```
 
 
-# Comparison
-
-The dissimilarity index, as well as the standard deviations can then be compared to the true error. 
-
-```{r prepare_comp}
-compare <- stack(response,prediction,
-                 predsd,truediff, 
-                 AOA$DI)
-names(compare) <- c("response","prediction", "sd","true_diff","DI")
-summary(values(compare))
-```
-
-```{r plot_comp, message=FALSE, echo=FALSE}
-p <- list()
-txts <- c("a","b","c","d","e","f")
-for (i in 1:nlayers(compare)){
-  cols <-viridis(100)
-  txt <- list("sp.text", c(-12,72), txts[i])
-  p[[i]] <- spplot(compare[[i]],col.regions = cols, 
-                   sp.layout=list(txt))
-}
-
-
-p[[i+1]] <- sp::spplot(prediction, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), txts[i+1])))+sp::spplot(AOA$AOA,col.regions=c("violetred","transparent"))
-
-
-png("../figures/caseStudy_PredRef.png",width=24, height=14,units = "cm",res=300)
-grid.arrange(p[[1]],p[[2]], p[[3]],
-             p[[4]],p[[5]],p[[6]],
-             nrow=2,ncol=3)
-invisible(dev.off())
-```
-
-```{r figs4, echo=FALSE,out.width = "100%", fig.cap="Comparison between reference (a), prediction (b), standard deviation of predictions (c), the true error (d), DI based on weighted variables (e), masked predictions (f)"}
-
-
-include_graphics("../figures/caseStudy_PredRef.png")
-```
-
 
 
 
@@ -413,7 +375,7 @@ The standard deviations of an ensemble are not helpful outside the AOA, however,
 
 ```{r lm_SDwithinAOA, include=FALSE}
 png("../figures/caseStudy_sdWithinAoa.png",width=10, height=10,units = "cm",res=300)
-spplot(compare$sd,col.regions=viridis(100))+spplot(AOA$AOA,col.regions=c("violetred","transparent"))
+spplot(predsd,col.regions=viridis(100))+spplot(AOA$AOA,col.regions=c("violetred","transparent"))
 invisible(dev.off())
 ```
 
@@ -421,6 +383,51 @@ invisible(dev.off())
 ```{r figs_sd, echo=FALSE,out.width="100%",fig.cap="Standard deviations of the random forest ensemble within the AOA"}
 include_graphics("../figures/caseStudy_sdWithinAoa.png")
 ```
+
+
+# Comparison
+
+The dissimilarity index, as well as the standard deviations can then be compared to the true error. 
+
+```{r prepare_comp}
+compare <- stack(response,prediction,
+                 predsd,truediff, 
+                 AOA$DI)
+names(compare) <- c("response","prediction", "sd","true_diff","DI")
+summary(values(compare))
+```
+
+```{r plot_comp, message=FALSE, echo=FALSE}
+p <- list()
+txts <- c("a","b","c","d","e","f")
+for (i in 1:nlayers(compare)){
+  cols <-viridis(100)
+  txt <- list("sp.text", c(-12,72), txts[i])
+  p[[i]] <- spplot(compare[[i]],col.regions = cols, 
+                   sp.layout=list(txt))
+}
+
+
+p[[i+1]] <- sp::spplot(prediction, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), txts[i+1])))+sp::spplot(AOA$AOA,col.regions=c("violetred","transparent"))
+
+#p[[i+1]] <- sp::spplot(AOA_new$expectedError,
+#                       col.regions=viridis(100),
+#                       sp.layout=list(list("sp.text", c(-12,72), txts[i+1])))+
+#  sp::spplot(AOA_new$AOA,col.regions=c("violetred","transparent"))
+
+png("../figures/caseStudy_PredRef.png",width=24, height=14,units = "cm",res=300)
+grid.arrange(p[[1]],p[[2]], p[[3]],
+             p[[4]],p[[5]],p[[6]],
+             nrow=2,ncol=3)
+invisible(dev.off())
+```
+
+```{r figs4, echo=FALSE,out.width = "100%", fig.cap="Comparison between reference (a), prediction (b), standard deviation of predictions (c), the true error (d), DI based on weighted variables (e), masked predictions (f)"}
+
+include_graphics("../figures/caseStudy_PredRef.png")
+```
+
+
 
 
 
@@ -501,8 +508,8 @@ ggplot(dat_all, aes(value,true_abs_error)) +
                        colors=viridis(10, alpha=.7))+
   theme_bw()+
  theme(legend.title = element_text( size = 10))+
-  geom_point(data=dat2,aes(DI,error))+
-  stat_smooth(data=dat2,aes(DI,error),method="lm",se = FALSE,col="red")
+  geom_point(data=dat2,aes(DI,error))#+
+  #stat_smooth(data=dat2,aes(DI,error),method="lm",se = FALSE,col="red")
 
 invisible(dev.off())
 ```
@@ -541,29 +548,19 @@ reference_metric <- apply(slidingw,1,function(x){
 })
   
 
-cairo_pdf("../figures/AOA_calibrate_singleCV.pdf", width=6, height=5)
-plot(recl$DI,recl$RMSE,xlab="DI",ylab=model$metric)
-points(recl$DI,reference_metric,col="red")
-legend("topleft",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,1,NA),col=c("black","red","black"),
-       legend=c("CV","Truth","model"),bty="n")
-  lines(seq(0,max(reference_perf$DI,na.rm=T),0.01),predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0,max(reference_perf$DI,na.rm=T),0.01))),lwd=1,lty=2,col="black")
+#cairo_pdf("../figures/AOA_calibrate_singleCV.pdf", width=6, height=5)
+# plot(recl$DI,recl$RMSE,xlab="DI",ylab=model$metric)
+# points(recl$DI,reference_metric,col="red")
+# legend("topleft",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,1,NA),col=c("black","red","black"),
+#        legend=c("CV","Truth","model"),bty="n")
+#   lines(seq(0,max(reference_perf$DI,na.rm=T),0.01),predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0,max(reference_perf$DI,na.rm=T),0.01))),lwd=1,lty=2,col="black")
   
-invisible(dev.off())
+#invisible(dev.off())
 
-
-
-png("../figures/errormap_group_singleCV.png",width=24, height=9,units = "cm",res=300)
-#grid.arrange(p[[1]],p[[2]], p[[3]],ncol=3)
-stck <- stack(AOA_new$expectedError,mask(truediff,AOA_new$expectedError),
-             mask(compare$sd,AOA_new$expectedError))
-names(stck) <- c("expected_error","true_error","sd_of_predictions")
-spplot(stck,col.regions=viridis(100))+
-    sp::spplot(AOA_new$AOA,col.regions=c("violetred","transparent"))
-invisible(dev.off())
 ```
 
 ```{r figs7, echo=FALSE, out.width="100%",fig.cap="Relationship between the cross-validated DI and the RMSE using the cross-validation folds already used during model training. The RMSE was estimated using predictions and observed values within a window of DI values."}
-include_graphics("../figures/AOA_calibrate_singleCV.pdf")
+#include_graphics("../figures/AOA_calibrate_singleCV.pdf")
 ```
 
 
@@ -577,55 +574,80 @@ We compare the relationship estimated by cross-validation with the true relation
 
 ```{r userAOA_multicv, warning=FALSE, message=FALSE, echo=FALSE,include=FALSE}
 
-AOA_new <- calibrate_aoa(AOA,model,multiCV=TRUE,length.out = 10,window.size = 10,showPlot=FALSE)
+AOA_new_MCV <- calibrate_aoa(AOA,model,multiCV=TRUE,length.out = 10,
+                         window.size = 10,showPlot=FALSE)
 
 
-recl <- attributes(AOA_new)$calib$group_stats
+recl_mcv <- attributes(AOA_new_MCV)$calib$group_stats
 
-reference_perf <- as.data.frame(stack(AOA$DI,response,prediction))
-reference_perf <- reference_perf[order(reference_perf$DI),]
-names(reference_perf) <- c("DI","obs","pred")
+reference_perf_MCV <- as.data.frame(stack(AOA$DI,response,prediction))
+reference_perf_MCV <- reference_perf_MCV[order(reference_perf_MCV$DI),]
+names(reference_perf_MCV) <- c("DI","obs","pred")
 
-slidingw <- attributes(AOA_new)$calib$group_stats
-reference_metric <- apply(slidingw,1,function(x){
+slidingw <- attributes(AOA_new_MCV)$calib$group_stats
+reference_metric_MCV <- apply(slidingw,1,function(x){
   x_df <- data.frame(t(x))
-  subs_ref <- reference_perf[reference_perf$DI>x_df$ll&
-                   reference_perf$DI<x_df$ul,]
+  subs_ref <- reference_perf_MCV[reference_perf_MCV$DI>x_df$ll&
+                   reference_perf_MCV$DI<x_df$ul,]
   rmse(subs_ref[,"pred"],subs_ref[,"obs"])
 })
-  
- 
-#saveRDS(recl,"test.RDS")
 
 
-cairo_pdf("../figures/AOA_calibrate.pdf", width=6, height=5)
-plot(recl$DI,recl$RMSE,xlab="DI",ylab=model$metric)
+
+cairo_pdf("../figures/AOA_calibrate.pdf", width=10, height=4.5)
+par(mar=c(4, 4, 0.2, 0.2), mfrow=c(1,2))
+
+plot(recl$DI,recl$RMSE,xlab="DI",ylab=model$metric,xlim=c(min(recl$DI,recl_mcv$DI),max(recl$DI,recl_mcv$DI)),ylim=c(min(recl$RMSE,recl_mcv$RMSE,na.rm=T),max(recl$RMSE,recl_mcv$RMSE,na.rm=T)))
 points(recl$DI,reference_metric,col="red")
-legend("topleft",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,1,NA),col=c("black","red","black"),
+legend("topright",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,1,NA),col=c("black","red","black"),
        legend=c("CV","Truth","model"),bty="n")
-lines(seq(0,max(reference_perf$DI,na.rm=T),0.01),predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0,max(reference_perf$DI,na.rm=T),0.01))),col="black",lty=2)
+  lines(seq(0,max(recl$DI),0.01),
+        predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0, max(recl$DI),0.01))),lwd=1,lty=2,col="black")
+  legend("topleft", "(a)", bty="n") 
+
+
+
+plot(recl_mcv$DI,recl_mcv$RMSE,xlab="DI",
+     xlim=c(min(recl$DI,recl_mcv$DI),max(recl$DI,recl_mcv$DI)),ylab="",
+     ylim=c(min(recl$RMSE,recl_mcv$RMSE,na.rm=T),max(recl$RMSE,recl_mcv$RMSE,na.rm=T)),yaxt="n")
+
+points(recl_mcv$DI,reference_metric_MCV,col="red")
+#legend("topleft",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,1,NA),col=c("black","red","black"),
+#       legend=c("CV","Truth","model"),bty="n")
+lines(seq(0,max(recl_mcv$DI),0.01),
+      predict(attributes(AOA_new_MCV)$calib$model,data.frame("DI"=seq(0, max(recl_mcv$DI),0.01))),
+      col="black",lty=2)
+legend("topleft", "(b)", bty="n") 
+
 invisible(dev.off())
 
+stck <- stack(truediff,
+              AOA_new$expectedError,
+              AOA_new_MCV$expectedError)
 
-png("../figures/errormap_group.png",width=24, height=9,units = "cm",res=300)
-stck <- stack(AOA_new$expectedError,mask(truediff,AOA_new$expectedError),
-             mask(compare$sd,AOA_new$expectedError))
-names(stck) <- c("expected_error","true_error","sd_of_predictions")
-spplot(stck,col.regions=viridis(100))+
-    sp::spplot(AOA_new$AOA,col.regions=c("violetred","transparent"))
+tmp <- AOA_new$AOA
+values(tmp)<- NA
+ovl <- stack(tmp,AOA_new$AOA,AOA_new_MCV$AOA)
+
+
+png("../figures/errormap_calib.png",width=24, height=9,units = "cm",res=300)
+spplot(stck,col.regions = cols,
+       names.attr=c('True absolute error', 'Estimated error (single CV)',"Estimated error (multiple CV)"),
+        par.settings =list(strip.background=list(col="grey")))+
+       spplot(ovl,col.regions=c("violetred","transparent"))
+
 invisible(dev.off())
 ```
 
 
-```{r figs8, echo=FALSE, out.width="100%",fig.cap="Relationship between the cross-validated DI and the RMSE using multiple cross-validation folds (clusters in predictor space from few to many clusters). The RMSE was estimated using predictions and observed values within a window of DI values."}
+```{r figs8, echo=FALSE, out.width="100%",fig.cap="Relationship between the cross-validated DI and the RMSE using the CV strategy used during initial model training (a) as well as multiple cross-validation folds (clusters in predictor space from few to many clusters) (b). The RMSE was estimated using predictions and observed values within a window of DI values."}
 include_graphics("../figures/AOA_calibrate.pdf")
 ```
 
 
-```{r figs9, echo=FALSE, out.width="100%",fig.cap="Expected performance which can be used to limit predictions to areas where a required performance applies. For comparison, the true prediction error as well as the standard deviations of the Random forest ensemble are shown."}
-include_graphics("../figures/errormap_group.png")
+```{r figs9, echo=FALSE, out.width="100%",fig.cap="Expected performance using either single CV for calibration (b) or multiple CV (c) which can be used to limit predictions to areas where a required performance applies. For comparison, the true prediction error is shown (a)."}
+include_graphics("../figures/errormap_calib.png")
 ```
-
 
 
 
