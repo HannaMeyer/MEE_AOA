@@ -632,7 +632,7 @@ ovl <- stack(tmp,AOA_new$AOA,AOA_new_MCV$AOA)
 
 png("../figures/errormap_calib.png",width=24, height=9,units = "cm",res=300)
 spplot(stck,col.regions = cols,
-       names.attr=c('True absolute error', 'Estimated error (single CV)',"Estimated error (multiple CV)"),
+       names.attr=c('True absolute error', 'Estimated RMSE (single CV)',"Estimated RMSE (multiple CV)"),
         par.settings =list(strip.background=list(col="grey")))+
        spplot(ovl,col.regions=c("violetred","transparent"))
 

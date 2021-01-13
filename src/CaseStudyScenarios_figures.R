@@ -4,7 +4,6 @@
 rm(list=ls())
 library(ggplot2)
 library(reshape2)
-library(hydroGOF)
 dat <- get(load("../data/resultsTable.RData"))
 
 means <- as.data.frame(matrix(unlist(dat$meansPCA),ncol=2,byrow = T))
@@ -71,3 +70,5 @@ points(caseStudy$model_RMSE_mcv~caseStudy[,paste0("PredErrorNOTAOA_RMSE_",thres)
 legend("topleft",legend="b",bty="n")
 abline(0,1)
 dev.off()
+
+summary(dat$calibAOA_R2)

@@ -30,9 +30,10 @@ library(scatterplot3d)
 library(ggplot2)
 library(randomForest)
 library(quantregForest)
+library(RColorBrewer)
 
+rmse <- function(pred,obs){sqrt( mean((pred - obs)^2, na.rm = TRUE) )}
 ```
-
 
 
 ```{r settings,include = FALSE}
@@ -46,6 +47,93 @@ seed <- 1
 var1="bio1"
 var2="bio19"
 ```
+
+## General problem of random forests in "unknown environments"
+
+```{r Fig_predintervals,include = FALSE}
+f = function(x, z = 0.8, b = 0, e = 0.3) {
+  z * x+ b + rnorm(length(x)) * e
+}
+set.seed(131)
+x = sort(runif(30, 0.7, 1.2))
+y = f(x, z = 1)
+m = lm(y~x)
+x_new = seq(0,2.2,length.out=100)
+newdata = data.frame(x = x_new, true = f(x_new, z = 1, e = 0))
+p = predict(m, newdata, interval = "prediction")
+ylim = range(p)
+ylim = c(min(newdata$true),max(newdata$true))
+xlim = c(0.1,2.1)
+xlab = "predictor"
+ylab = "response"
+
+pdf("../figures/concept_figures/fig1.pdf",width=10,height=5)
+par(mfrow = c(1,2 ))
+par(mar = c(5.1, 4.1, 2.1, 0.1))
+plot(y~x, xlim = xlim, ylim = ylim, xlab = xlab, ylab = ylab,pch=16)
+newdata = cbind(newdata, p)
+lines(true~x, newdata, col = 'green')
+lines(fit~x, newdata, col = 'black')
+lines(lwr~x, newdata, lty = 2, col = 'black')
+lines(upr~x, newdata, lty = 2, col = 'black')
+legend("topleft",legend="a",bty="n")
+legend("bottomright",lty=c(1,2,1,NA),pch=c(NA,NA,NA,16),
+       col=c("black","black","green","black"),
+       legend=c("prediction","interval","truth","training"),bty="n")
+
+
+f <- function(x){
+  wave.1 <- sin(3*x)+1
+  wave.2 <- sin(12*x)+1
+  wave.3 <- 0.9 * wave.1 + 0.25 * wave.2
+}
+
+x <- seq(0,2.2,0.001)
+newdata <- data.frame("x"=x,"true" = f(x))
+set.seed(1)
+x <- c(runif(10,0,0.4),runif(18,0.8,1.5),runif(11,1.5,1.7))
+set.seed(10)
+y <- f(x)+runif(length(x),-0.1,0.1)
+
+
+ylim <- c(min(newdata$true),max(newdata$true))
+xlim <- c(0.1,2.1)
+
+#### Random Forest with predictions from individual trees
+set.seed(10)
+rf = randomForest(y~x, data.frame(x=x,y=y))
+pr = predict(rf, newdata, predict.all = TRUE)
+par(mar = c(5.1, 1.1, 2.1, 2.1))
+plot(y~x,xlim=xlim,ylim=ylim,xlab = xlab, ylab = NA,yaxt="n",pch=16)
+lines(true~x, newdata, col = 'green')
+lines(pr$aggregate~newdata$x, col = 'black')
+lwr = apply(pr$individual, 1, quantile, 0.025)
+upr = apply(pr$individual, 1, quantile, 0.975)
+lines(lwr~newdata$x, col = 'black', lty = 2)
+lines(upr~newdata$x, col = 'black', lty = 2)
+legend("topleft",legend="b",bty="n")
+
+### Quantile regression forest
+#set.seed(10)
+#qrf =  quantregForest(data.frame(x),y)
+#pr  <- predict(qrf,  newdata)
+#par(mar = c(5.1, 1.1, 2.1, 2.1))
+#plot(y~x,xlim=xlim,ylim=ylim,xlab = xlab, ylab = NA,yaxt="n",pch=16)
+#lines(true~x, newdata, col = 'green')
+#lines(pr[,2]~newdata$x, col = 'black')
+#lines(pr[,1]~newdata$x, col = 'black', lty = 2)
+#lines(pr[,3]~newdata$x, col = 'black', lty = 2)
+#legend("topleft",legend="b",bty="n")
+
+dev.off()
+```
+
+```{r figsPredIntervals, echo=FALSE,out.width="100%",fig.cap="Problem of predicting beyond the training data and behaviour of prediction intervals for different models. Left: linear regression prediction interval width increases with distance from the center of the training data, right: a more complex relationship fitted with Random Forest. Prediction beyond the training data becomes highly unreliable, although prediction interval width outside the data range is constant. Random Forest prediction intervals were obtained by computing quantiles over the predictions from individual trees."}
+include_graphics("../figures/concept_figures/fig1.pdf")
+```
+
+## Method
+
 
 
 ```{r data, message = FALSE,include = FALSE}
@@ -317,12 +405,6 @@ include_graphics("../figures/concept_figures/DI_training.pdf")
 
 
 
-
-
-
-
-
-
 # Estimate the AOA for each new potential data point
 
 ```{r Fig_DI_and_AOA,include = FALSE}
@@ -356,6 +438,7 @@ points(trainDat[,"A"],trainDat[,"B"],pch=16)
 legend("topleft",pch=c(16),col=c("black"),legend=c("Training samples"),bty="n")
 
 dev.off()
+par(mfrow=c(1,1))
 ```
 
 
@@ -365,11 +448,98 @@ include_graphics("../figures/concept_figures/AOA.pdf")
 
 
 
+# Using the performance~DI relationship to get a quantitative uncertainty measure
+
+## Estimating the relationship using the cross-validated data
+
+Relationship between the DI and RMSE based on the cross-validation folds used during model training and validation. RMSE was calculated in a sliding window of 10 along the DI. To estimate the RMSE based on the DI, a shape constrained additive model was used.
+
+```{r}
+pdf("../figures/concept_figures/AOA_calib_singleCV.pdf",width=10,height=7)
+singleCVAOA <- calibrate_aoa(newdat_aoa,model,window.size = 10)
+invisible(dev.off())
+```
 
 
-# Additional figures
 
-## Full range of training data covered
+```{r, echo=FALSE,out.width="100%",fig.cap="... Note that this is a very small example."}
+include_graphics("../figures/concept_figures/AOA_calib_singleCV.pdf")
+```
+
+
+
+
+
+## Using Multi-purpose CV
+
+The results shown above are based on a singl-purpose CV.
+We can also estimate the relationship between performance and DI using multiple CVs.
+Here, we split the data several times into folds using clusters in the predictor space with the number of clusters ranging between 3 and the number of data points (=LOOCV).
+The following figure shows how data splitting can look like for different numbers of k.
+
+```{r, warning= FALSE, echo = FALSE}
+
+pdf("../figures/concept_figures/MultiCVsplits.pdf",width=10,height=10)
+par(mfrow=c(1,3),mar=c(4,4,1,1))
+k <- 4
+clstr <- kmeans(trainDat_weights,centers = k)
+plot(trainDat_weights$A,trainDat_weights$B,col=rainbow(k)[clstr$cluster],
+     pch=16,xlab="Predictor A (scaled and weighted)",ylab="Predictor B (scaled and weighted)",
+     xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
+     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])),asp=1)
+legend("topleft",legend=paste0("k=",k),bty="n")
+
+k <- 10
+clstr <- kmeans(trainDat_weights,centers = k)
+plot(trainDat_weights$A,trainDat_weights$B,col=rainbow(k)[clstr$cluster],
+     pch=16,xlab="Predictor A (scaled and weighted)",ylab="",
+     xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
+     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])),asp=1)
+legend("topleft",legend=paste0("k=",k),bty="n")
+
+k <- nrow(trainDat_weights)-1
+clstr <- kmeans(trainDat_weights,centers = k)
+plot(trainDat_weights$A,trainDat_weights$B,col=rainbow(k)[clstr$cluster],
+     pch=16,xlab="Predictor A (scaled and weighted)",ylab="",
+     xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
+     ylim=c(min(newdat[,"B"]),max(newdat[,"B"])),asp=1)
+legend("topleft",legend=paste0("k=",k),bty="n")
+dev.off()
+
+```
+
+
+```{r, echo=FALSE,out.width="100%",fig.cap="..."}
+include_graphics("../figures/concept_figures/MultiCVsplits.pdf")
+```
+
+
+
+
+Using multi-purpose CVs allows expanding the AOA and also allows giving a more robust estimate for the relationship.
+
+```{r, warning= FALSE}
+pdf("../figures/concept_figures/AOA_calib_multiCV.pdf",width=10,height=7)
+multiCVAOA <- calibrate_aoa(newdat_aoa,model,window.size = 25,multiCV = TRUE)
+invisible(dev.off())
+```
+
+
+
+
+```{r, echo=FALSE,out.width="100%",fig.cap=".."}
+include_graphics("../figures/concept_figures/AOA_calib_multiCV.pdf")
+```
+
+
+
+
+
+
+
+# FAQ explained in figures
+
+## What happens if the full range of predictors is covered by training data?
 
 When the full range of environmental conditions is covered the result is that the model can be applied to the entire study area. However, covering the full range of each variable is not enough (figure left) but the combined ranges need to be covered if the model should be applicable to the entire study area (figure right).
 
@@ -428,4 +598,48 @@ dev.off()
 
 ```{r figs_dist2allpoints, echo=FALSE,out.width="100%",fig.cap=""}
 include_graphics("../figures/concept_figures/dist2allpoints.pdf")
+```
+
+
+## How would the AOA look like for Fig. 1 of the manuscript?
+
+```{r Fig_predintervalsAOA,include = FALSE}
+AOA <- aoa(newdata, train=data.frame("x"=x))
+
+pdf("../figures/concept_figures/fig_last.pdf",width=6,height=8)
+par(mfrow=c(2,1))
+par(mar = c(0.1, 5.1, 2.1, 0.1))
+plot(y~x,xlim=xlim,ylim=ylim,xlab = NA, xaxt='n',
+     ylab = ylab,pch=16)
+lines(true~x, newdata, col = 'green')
+lines(pr$aggregate~newdata$x, col = 'black')
+lwr = apply(pr$individual, 1, quantile, 0.025)
+upr = apply(pr$individual, 1, quantile, 0.975)
+lines(lwr~newdata$x, col = 'black', lty = 2)
+lines(upr~newdata$x, col = 'black', lty = 2)
+
+bp <-which(c(FALSE, tail(AOA$AOA,-1) != head(AOA$AOA,-1)))
+polygon(x=c(newdata$x[bp[1]],newdata$x[bp[2]],newdata$x[bp[2]],newdata$x[bp[1]]),
+        y=c(0,0,2.3,2.3),col=rgb(0.6,0.6,0.6,alpha=0.5),border = NA)
+
+polygon(x=c(newdata$x[bp[3]],max(newdata$x)-0.022,max(newdata$x)-0.022,newdata$x[bp[3]]),
+        y=c(0,0,2.3,2.3),col=rgb(0.6,0.6,0.6,alpha=0.5),
+        border = NA)
+
+legend("bottomleft",lty=c(1,2,1,NA,NA),pch=c(NA,NA,NA,16,15),
+       col=c("black","black","green","black","grey"),
+       legend=c("prediction","interval","truth","training","not in AOA")
+       ,bty="n",bg="white")
+legend("topleft",legend="a",bty="n")
+
+par(mar = c(6, 5.1, 0.7, 0.1))
+plot(AOA$DI~newdata$x,xlim=xlim,xlab = xlab, ylab = "DI",
+     type="l",lwd=2)
+abline(attributes(AOA)$aoa_stats$threshold,0,lty=2)
+legend("topleft",legend="b",bty="n")
+dev.off()
+```
+
+```{r figsPredIntervalsAOA, echo=FALSE,out.width="100%",fig.cap="Hypothetical example of a relationship between a virtual predictor and response variable as well as the predictions made by Random Forest already presented in Figure 1. Low values in the dissimilarity index (DI) do not necessarily mean that the prediction error is high. As moving away from the last training data point (x= 1.7), the value of the DI increases (b). However, the error does not necessarily increases in the same way (comparing the predictions with the truth in a). The uncertainty must still be considered as very high because this area of the predictor space is unknown to the model. The area of applicability (AOA) is derived using the outlier-removed maximum DI observed in the cross-validated training data as a threshold (dashed line in b) and is used to exclude predictions in areas where dissimilarity is too high (grey area in a)."}
+include_graphics("../figures/concept_figures/fig_last.pdf")
 ```
