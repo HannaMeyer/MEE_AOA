@@ -71,4 +71,6 @@ legend("topleft",legend="b",bty="n")
 abline(0,1)
 dev.off()
 
+## R2 of the calibrated AOA
 summary(dat$calibAOA_R2)
+

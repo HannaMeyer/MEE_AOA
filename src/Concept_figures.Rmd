@@ -248,7 +248,7 @@ title(xlab="Importance", line=1.2,cex.lab=0.75,adj=0)
 dev.off()
 ```
 
-```{r figs1, echo=FALSE,out.width="100%",fig.cap="Initial situation: Training samples in a multidimensional (here 2) predictor space. First, the predictor space is scaled and weighted (second x and y axis) according to the estimated variable importance shown in the topright corner."}
+```{r figs1, echo=FALSE,out.width="100%",fig.cap="Initial situation: Training samples in a multidimensional (here 2) predictor space (a). First, the predictor space is scaled (second x and y axis in the left plot) and then and weighted (plot right) according to the estimated variable importance shown in the topright corner."}
 include_graphics("../figures/concept_figures/weightedData.pdf")
 ```
 
@@ -398,7 +398,7 @@ dev.off()
 ```
 
 
-```{r figs3, echo=FALSE,out.width="100%",fig.cap="To answer the question if the trained model can be applied to a new data point, a threshold is used. This is the outlier-removed maximum DI of the cross-validated training data. The calculation of the DI of the training data is shown here for one example: The example data point is in fold 3 of the model. Therefore the distance to the nearest training data point NOT located in fold 3 is calculated (b) and this distance divided by the average of the mean distances between all training data (a). The DI is calculated for each training data point (boxplot) and the threshold is then derived from these DI values, so that a data point is outside the AOA if it is more dissimilar than the dissimilarity observed within the training data."}
+```{r figs3, echo=FALSE,out.width="100%",fig.cap="To answer the question if the trained model can be applied to a new data point, a threshold is used. This is the outlier-removed maximum DI of the cross-validated training data. The calculation of the DI of the training data is shown here for one example: The example data point is in fold 3 of the model. Therefore the distance to the nearest training data point NOT located in fold 3 is calculated (b) and this distance divided by the average of the mean distances between all training data (a). The DI is calculated for each training data point (boxplot) and the threshold is then derived from these DI values, so that a new data point (c) is outside the AOA if it is more dissimilar than the dissimilarity observed within the training data."}
 include_graphics("../figures/concept_figures/DI_training.pdf")
 ```
 
@@ -442,7 +442,7 @@ par(mfrow=c(1,1))
 ```
 
 
-```{r figs4, echo=FALSE,out.width="100%",fig.cap="This threshold can be applied to the entire predictor space to derive the AOA (b) from the DI (a) of each new data point."}
+```{r figs4, echo=FALSE,out.width="100%",fig.cap="The AOA threshold can be applied to the entire predictor space to derive the AOA (b) from the DI (a) of each new data point."}
 include_graphics("../figures/concept_figures/AOA.pdf")
 ```
 
@@ -462,7 +462,7 @@ invisible(dev.off())
 
 
 
-```{r, echo=FALSE,out.width="100%",fig.cap="... Note that this is a very small example."}
+```{r, echo=FALSE,out.width="100%",fig.cap="Relationship between the DI and RMSE within the AOA based on single cross-validation. RMSE was calculated in a sliding window along the DI. To estimate the RMSE based on the DI, a shape constrained additive model was used. .Note that in this small example there is no strong relationship between DI and RMSE."}
 include_graphics("../figures/concept_figures/AOA_calib_singleCV.pdf")
 ```
 
@@ -509,7 +509,7 @@ dev.off()
 ```
 
 
-```{r, echo=FALSE,out.width="100%",fig.cap="..."}
+```{r, echo=FALSE,out.width="100%",fig.cap="Example of multi-purpose cross-validation folds that have been assigned based on clusters in the predictor space."}
 include_graphics("../figures/concept_figures/MultiCVsplits.pdf")
 ```
 
@@ -517,6 +517,7 @@ include_graphics("../figures/concept_figures/MultiCVsplits.pdf")
 
 
 Using multi-purpose CVs allows expanding the AOA and also allows giving a more robust estimate for the relationship.
+The relationship can be used to estimate the error for each new data point based on the DI.
 
 ```{r, warning= FALSE}
 pdf("../figures/concept_figures/AOA_calib_multiCV.pdf",width=10,height=7)
@@ -527,12 +528,9 @@ invisible(dev.off())
 
 
 
-```{r, echo=FALSE,out.width="100%",fig.cap=".."}
+```{r, echo=FALSE,out.width="100%",fig.cap="Relationship between the DI and RMSE within the AOA based on multi-purpose cross-validation. RMSE was calculated in a sliding window along the DI. To estimate the RMSE based on the DI, a shape constrained additive model was used. Note that in this small example there is no strong relationship between DI and RMSE."}
 include_graphics("../figures/concept_figures/AOA_calib_multiCV.pdf")
 ```
-
-
-
 
 
 

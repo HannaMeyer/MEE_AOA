@@ -52,7 +52,7 @@ Further interesting settings:
 * Case Study biased with outlier: npoints=50,design="biasedWithOutlier",countries = c("Germany","Ireland","France", "Sweden"), countriesOutlier= "Turkmenistan"
 maxdist <- 0.6, meansPCA= c(3, -1), sdPCA=c(2, 2), simulateResponse=c("bio2","bio5","bio10", "bio13","bio14", "bio19"), studyarea=c(-15, 65, 30, 75), seed=10
 
-* Case Study biased: same as biased with outlier but without the outlier
+* Case Study biased: same as biased with outlier but with design= "outlier"
 
 
 ```{r settings}
@@ -528,9 +528,13 @@ This can be done using the result of calibrate_aoa which used the relationship a
 
 ```{r userAOA_cv, warning=FALSE, message=FALSE, echo=FALSE,include=FALSE}
 
+if(nrow(model$trainingData>=250)){
+  window.size <- 10 # clustered has more data so a larger window size is possible
+}else{
+  window.size <- 5
+}
 
 AOA_new <- calibrate_aoa(AOA,model,window.size = 5,showPlot=FALSE)
-
 recl <- attributes(AOA_new)$calib$group_stats
 
 reference_perf <- as.data.frame(stack(AOA$DI,response,prediction))
@@ -574,9 +578,15 @@ We compare the relationship estimated by cross-validation with the true relation
 
 ```{r userAOA_multicv, warning=FALSE, message=FALSE, echo=FALSE,include=FALSE}
 
-AOA_new_MCV <- calibrate_aoa(AOA,model,multiCV=TRUE,length.out = 10,
-                         window.size = 10,showPlot=FALSE)
 
+if(nrow(model$trainingData>=250)){
+  window.size <- 50 # clustered has more data so a larger window size is possible
+}else{
+  window.size <- 10
+}
+
+AOA_new_MCV <- calibrate_aoa(AOA,model,multiCV=TRUE,length.out = 10,
+                         window.size = window.size,showPlot=FALSE)
 
 recl_mcv <- attributes(AOA_new_MCV)$calib$group_stats
 
@@ -594,15 +604,15 @@ reference_metric_MCV <- apply(slidingw,1,function(x){
 
 
 
-cairo_pdf("../figures/AOA_calibrate.pdf", width=10, height=4.5)
+cairo_pdf(paste0("../figures/AOA_calibrate_",design,".pdf"), width=10, height=4.5)
 par(mar=c(4, 4, 0.2, 0.2), mfrow=c(1,2))
 
 plot(recl$DI,recl$RMSE,xlab="DI",ylab=model$metric,xlim=c(min(recl$DI,recl_mcv$DI),max(recl$DI,recl_mcv$DI)),ylim=c(min(recl$RMSE,recl_mcv$RMSE,na.rm=T),max(recl$RMSE,recl_mcv$RMSE,na.rm=T)))
 points(recl$DI,reference_metric,col="red")
-legend("topright",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,1,NA),col=c("black","red","black"),
+legend("topright",lty=c(NA,NA,2),lwd=c(NA,NA,2),pch=c(1,1,NA),col=c("black","red","blue"),
        legend=c("CV","Truth","model"),bty="n")
   lines(seq(0,max(recl$DI),0.01),
-        predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0, max(recl$DI),0.01))),lwd=1,lty=2,col="black")
+        predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0, max(recl$DI),0.01))),lwd=2,lty=2,col="blue")
   legend("topleft", "(a)", bty="n") 
 
 
@@ -616,23 +626,24 @@ points(recl_mcv$DI,reference_metric_MCV,col="red")
 #       legend=c("CV","Truth","model"),bty="n")
 lines(seq(0,max(recl_mcv$DI),0.01),
       predict(attributes(AOA_new_MCV)$calib$model,data.frame("DI"=seq(0, max(recl_mcv$DI),0.01))),
-      col="black",lty=2)
+      col="blue",lty=2,lwd=2)
 legend("topleft", "(b)", bty="n") 
 
 invisible(dev.off())
 
-stck <- stack(truediff,
-              AOA_new$expectedError,
+
+stck <- stack(AOA_new$expectedError,
               AOA_new_MCV$expectedError)
 
 tmp <- AOA_new$AOA
 values(tmp)<- NA
-ovl <- stack(tmp,AOA_new$AOA,AOA_new_MCV$AOA)
+#ovl <- stack(tmp,AOA_new$AOA,AOA_new_MCV$AOA)
+ovl <- stack(AOA_new$AOA,AOA_new_MCV$AOA)
 
-
-png("../figures/errormap_calib.png",width=24, height=9,units = "cm",res=300)
+png(paste0("../figures/errormap_calib_",design,".png"),width=18, height=9,units = "cm",res=300)
 spplot(stck,col.regions = cols,
-       names.attr=c('True absolute error', 'Estimated RMSE (single CV)',"Estimated RMSE (multiple CV)"),
+      # names.attr=c('True absolute error', 'Estimated RMSE (single CV)',"Estimated RMSE (multiple CV)"),
+      names.attr=c('Estimated RMSE (single CV)',"Estimated RMSE (multiple CV)"),
         par.settings =list(strip.background=list(col="grey")))+
        spplot(ovl,col.regions=c("violetred","transparent"))
 
@@ -640,13 +651,21 @@ invisible(dev.off())
 ```
 
 
+```{r}
+# model using single-CV
+print(summary(attributes(AOA_new)$calib$model))
+
+# model using multiple-CV
+print(summary(attributes(AOA_new_MCV)$calib$model))
+```
+
 ```{r figs8, echo=FALSE, out.width="100%",fig.cap="Relationship between the cross-validated DI and the RMSE using the CV strategy used during initial model training (a) as well as multiple cross-validation folds (clusters in predictor space from few to many clusters) (b). The RMSE was estimated using predictions and observed values within a window of DI values."}
-include_graphics("../figures/AOA_calibrate.pdf")
+include_graphics(paste0("../figures/AOA_calibrate_",design,".pdf"))
 ```
 
 
 ```{r figs9, echo=FALSE, out.width="100%",fig.cap="Expected performance using either single CV for calibration (b) or multiple CV (c) which can be used to limit predictions to areas where a required performance applies. For comparison, the true prediction error is shown (a)."}
-include_graphics("../figures/errormap_calib.png")
+include_graphics(paste0("../figures/errormap_calib_",design,".png"))
 ```
 
 
