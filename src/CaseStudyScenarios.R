@@ -3,8 +3,6 @@ setwd("/scratch/tmp/hmeyer1/MappingAOA/")
 
 install.packages("/home/h/hmeyer1/R/CAST_0.4.3.tar.gz", repos = NULL,
                  lib="/home/h/hmeyer1/R/")
-#install.packages("/home/h/hmeyer1/R/scam_1.2-9.tar.gz", repos = NULL,
-#                 lib="/home/h/hmeyer1/R/")
 
 
 
@@ -69,19 +67,19 @@ for (setting in 1:nrow(settings)){
   design <- resultsTable$design[[setting]]
 
   if (design=="clustered"){
-  if (npoints==25){
-    nclusters <- 5 #number of clusters if design==clustered
-  }
-  if (npoints==50){
-    nclusters <- 10 #number of clusters if design==clustered
-  }
+    if (npoints==25){
+      nclusters <- 5 #number of clusters if design==clustered
+    }
+    if (npoints==50){
+      nclusters <- 10 #number of clusters if design==clustered
+    }
     if (npoints==75){
       nclusters <- 10 #number of clusters if design==clustered
     }
-  if (npoints>75){
-    nclusters <- round(npoints/10,0)
-  }
-  resultsTable$nclusters[setting] <- nclusters
+    if (npoints>75){
+      nclusters <- round(npoints/10,0)
+    }
+    resultsTable$nclusters[setting] <- nclusters
   }else{
     resultsTable$nclusters[setting] <- NA
   }
@@ -171,10 +169,6 @@ for (setting in 1:nrow(settings)){
 
 
 
-  # model <- train(trainDat[,names(predictors)],trainDat$response,
-  #                 method="rf",importance=TRUE,tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
-  #                trControl = trainControl(method="cv"))
-
   ## Prediction and error calculation
 
   prediction <- predict(predictors,model)
@@ -185,29 +179,27 @@ for (setting in 1:nrow(settings)){
 
 
   ### AOA calib
-  AOA_calib <- calibrate_aoa(AOA,model,window.size = 5,multiCV = TRUE,length.out = 10,calib="scam")
-  resultsTable$calibAOA_R2[setting] <- summary(lm(values(AOA_calib$expectedError)~values(truediff)))$r.squared
-  resultsTable$calibAOA_RMSE[setting] <- rmse(values(AOA_calib$expectedError),values(truediff))
+  AOA_calib <- calibrate_aoa(AOA,model,window.size = 10,multiCV = TRUE,length.out = 10,showPlot = FALSE)
+  resultsTable$calibAOA_R2[setting] <- summary(lm(values(AOA_calib[[3]])~values(truediff)))$r.squared
 
 
 
-   #Standard deviation from individual trees for comparison
-   RFsd <- function(predictors,model){
-     prep <- as.data.frame(predictors)
-     prep[is.na(prep)] <- -9999
-     pred_all <- predict(model$finalModel,prep,predict.all=TRUE)
-     sds <-  apply(pred_all$individual,1,sd)
-     predsd <- predictors[[1]]
-     values(predsd)<-sds
-     values(predsd)[prep[,1]==-9999] <- NA
-     return(predsd)
-   }
-    predsd <- RFsd(predictors,model)
- #   DI_calib <- calibrate_aoa(AOA,model,showplot=FALSE,maskAOA=FALSE)$expectedError
+  #Standard deviation from individual trees for comparison
+  RFsd <- function(predictors,model){
+    prep <- as.data.frame(predictors)
+    prep[is.na(prep)] <- -9999
+    pred_all <- predict(model$finalModel,prep,predict.all=TRUE)
+    sds <-  apply(pred_all$individual,1,sd)
+    predsd <- predictors[[1]]
+    values(predsd)<-sds
+    values(predsd)[prep[,1]==-9999] <- NA
+    return(predsd)
+  }
+  predsd <- RFsd(predictors,model)
 
   ## Relationship with the true error
   resultsTable$DI_R2[setting] <- summary(lm(values(truediff)~values(AOA$DI)))$r.squared
-   resultsTable$RFSD_R2[setting] <- summary(lm(values(truediff)~values(predsd)))$r.squared
+  resultsTable$RFSD_R2[setting] <- summary(lm(values(truediff)~values(predsd)))$r.squared
   resultsTable$PredError_R2[setting] <- summary(lm(values(response)~values(prediction)))$r.squared
   resultsTable$PredError_RMSE[setting] <- rmse(values(response),values(prediction))
 
@@ -226,13 +218,10 @@ for (setting in 1:nrow(settings)){
   # compare for different thresholds
   ################################################################################
   potentialthresholds <- c(attributes(AOA)$aoa_stats$threshold, attributes(AOA)$aoa_stats$threshold_stats)
- # names(potentialthresholds)<- c("0%","default",names(attributes(AOA)$aoa_stats$threshold_stats),"2*max",
-  #                               "3*max","4*max")
   names(potentialthresholds)<- c("default",names(attributes(AOA)$aoa_stats$threshold_stats))
+
   for (th in 1:length(potentialthresholds)){
-    #thres <- attributes(AOA)$aoa_stats$threshold_stats[th]
     thres <- potentialthresholds[th]
-    #thres_name <- names(attributes(AOA)$aoa_stats$threshold_stats)[th]
     thres_name <- names(potentialthresholds)[th]
     predictionAOI <- prediction
     values(predictionAOI)[values(AOA$DI)>thres] <- NA
@@ -251,10 +240,7 @@ for (setting in 1:nrow(settings)){
     resultsTable[setting,paste0("DI_RMSE_AOA_",thres_name)] <- rmse(values(truediff)[values(AOA$DI)<=thres],values(AOA$DI)[values(AOA$DI)<=thres])
 
 
-   #     resultsTable[setting,paste0("RFSDDIcalib_R2_AOA_",thres_name)]    <- summary(lm(values(DI_calib)[values(AOA$AOA)==1]~values(predsd)[values(AOA$AOA)==1]))$r.squared
-  #      resultsTable[setting,paste0("RFSDDIcalib_RMSE_AOA_",thres_name)] <- rmse(values(predsd)[values(AOA$DI)<=thres],values(DI_calib)[values(AOA$DI)<=thres])
-
-        predictionNOTAOI <- prediction
+    predictionNOTAOI <- prediction
     values(predictionNOTAOI)[values(AOA$DI)<=thres] <- NA
 
 
@@ -265,8 +251,6 @@ for (setting in 1:nrow(settings)){
       resultsTable[setting,paste0("RFSD_RMSE_NOTAOA_",thres_name)] <- NA
       resultsTable[setting,paste0("DI_RMSE_NOTAOA_",thres_name)] <- NA
       resultsTable[setting,paste0("DI_R2_NOTAOA_",thres_name)] <- NA
-    #  resultsTable[setting,paste0("RFSDDIcalib_R2_NOTAOA_",thres_name)] <- NA
-   #   resultsTable[setting,paste0("RFSDDIcalib_RMSE_NOTAOA_",thres_name)] <- NA
 
     }else{
       resultsTable[setting,paste0("PredErrorNOTAOA_R2_",thres_name)] <- summary(lm(values(response)~values(predictionNOTAOI)))$r.squared
@@ -275,11 +259,8 @@ for (setting in 1:nrow(settings)){
       resultsTable[setting,paste0("RFSD_RMSE_NOTAOA_",thres_name)] <- rmse(values(truediff)[values(AOA$DI)>thres],values(predsd)[values(AOA$DI)>thres])
 
 
-   resultsTable[setting,paste0("DI_R2_NOTAOA_",thres_name)] <- summary(lm(values(truediff)[values(AOA$DI)>thres]~values(AOA$DI)[values(AOA$DI)>thres]))$r.squared
- resultsTable[setting,paste0("DI_RMSE_NOTAOA_",thres_name)] <- rmse(values(truediff)[values(AOA$DI)>thres],values(AOA$DI)[values(AOA$DI)>thres])
-
-   #    resultsTable[setting,paste0("RFSDDIcalib_R2_NOTAOA_",thres_name)]    <- summary(lm(values(DI_calib)[values(AOA$DI)>thres]~values(predsd)[values(AOA$DI)>thres]))$r.squared
-   #    resultsTable[setting,paste0("RFSDDIcalib_RMSE_NOTAOA_",thres_name)] <- rmse(values(predsd)[values(AOA$DI)>thres],values(DI_calib)[values(AOA$DI)>thres])
+      resultsTable[setting,paste0("DI_R2_NOTAOA_",thres_name)] <- summary(lm(values(truediff)[values(AOA$DI)>thres]~values(AOA$DI)[values(AOA$DI)>thres]))$r.squared
+      resultsTable[setting,paste0("DI_RMSE_NOTAOA_",thres_name)] <- rmse(values(truediff)[values(AOA$DI)>thres],values(AOA$DI)[values(AOA$DI)>thres])
 
 
     }

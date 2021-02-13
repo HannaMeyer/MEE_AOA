@@ -44,13 +44,12 @@ Note: To reproduce results used in the paper use the following settings:
 * Default Case study with random data: npoints=50,design="random",meansPCA= c(3, -1), sdPCA=c(2, 2),simulateResponse=c("bio2","bio5","bio10", "bio13","bio14","bio19"),studyarea=c(-15, 65, 30, 75), seed=10
 
 * Case Study with clustered data: npoints=500,nclusters=50,design="clustered",
-maxdist <- 0.6, meansPCA= c(3, -1), sdPCA=c(2, 2), simulateResponse=c("bio2","bio5","bio10", "bio13","bio14", "bio19"), studyarea=c(-15, 65, 30, 75), seed=10
+maxdist <- 0.8, meansPCA= c(3, -1), sdPCA=c(2, 2), simulateResponse=c("bio2","bio5","bio10", "bio13","bio14", "bio19"), studyarea=c(-15, 65, 30, 75), seed=10
 
 
 Further interesting settings:
 
-* Case Study biased with outlier: npoints=50,design="biasedWithOutlier",countries = c("Germany","Ireland","France", "Sweden"), countriesOutlier= "Turkmenistan"
-maxdist <- 0.6, meansPCA= c(3, -1), sdPCA=c(2, 2), simulateResponse=c("bio2","bio5","bio10", "bio13","bio14", "bio19"), studyarea=c(-15, 65, 30, 75), seed=10
+* Case Study biased with outlier: npoints=50,design="biasedWithOutlier",countries = c("Germany","Ireland","France", "Sweden"), countriesOutlier= "Turkmenistan", meansPCA= c(3, -1), sdPCA=c(2, 2), simulateResponse=c("bio2","bio5","bio10", "bio13","bio14", "bio19"), studyarea=c(-15, 65, 30, 75), seed=10
 
 * Case Study biased: same as biased with outlier but with design= "outlier"
 
@@ -58,12 +57,12 @@ maxdist <- 0.6, meansPCA= c(3, -1), sdPCA=c(2, 2), simulateResponse=c("bio2","bi
 ```{r settings}
 npoints <- 50 # number of training samples
 
-design <- "random"  # either clustered,biased,random, biasedWithOutlier
+design <- "biasedWithOutlier"  # either clustered,biased,random, biasedWithOutlier
 
 countries <- c("Germany","Ireland","France", "Sweden") #if design==biased
 countriesOutlier <- "Turkmenistan" #if design==biasedWithOutlier A single point is set here
 nclusters <- 50 #number of clusters if design==clustered
-maxdist <- 0.6 #maxdist for clustered samples if design==clustered
+maxdist <- 0.8 #maxdist for clustered samples if design==clustered
 meansPCA <- c(3, -1) # means of the gaussian response functions to the 2 axes
 sdPCA <- c(2, 2) # sd's of the gaussian response functions to the 2 axes
 simulateResponse <- c("bio2","bio5","bio10", "bio13",
@@ -92,7 +91,7 @@ The virtual response variable is created based on the PCA of a subset of bioclim
 
 ```{r variables,message = FALSE}
 response_vs <- generateSpFromPCA(predictors[[simulateResponse]],
-                              means = meansPCA,sds = sdPCA, plot=F)
+                                 means = meansPCA,sds = sdPCA, plot=F)
 
 response <- response_vs$suitab.raster
 
@@ -139,11 +138,11 @@ if (design=="biased"){
 if (design=="biasedWithOutlier"){
   countryboundaries <- getData("countries", path='../data/')
   countryboundariesOut <- countryboundaries[countryboundaries$NAME_ENGLISH%in%c(countriesOutlier),]
-    countryboundaries <- countryboundaries[countryboundaries$NAME_ENGLISH%in%c(countries),]
+  countryboundaries <- countryboundaries[countryboundaries$NAME_ENGLISH%in%c(countries),]
   samplepoints <- spsample(countryboundaries,npoints,"random")
   samplepoints <- rbind(samplepoints,spsample(countryboundariesOut,1,"random"))
 }  
-  
+
 if (design=="random"){
   samplepoints <- spsample(mask,npoints,"random")
 }
@@ -221,23 +220,23 @@ Model training is then done using the caret package. Note that other packages wo
 ```{r training}
 set.seed(seed)
 if(design!="clustered"){
-model <- train(trainDat[,names(predictors)],
-               trainDat$response,
-               method="rf",
-               importance=TRUE,
-               tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
-               trControl = trainControl(method="cv",savePredictions = TRUE))
-
-
-print("random cross-validation performance:")
-print(model)
+  model <- train(trainDat[,names(predictors)],
+                 trainDat$response,
+                 method="rf",
+                 importance=TRUE,
+                 tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
+                 trControl = trainControl(method="cv",savePredictions = TRUE))
+  
+  
+  print("random cross-validation performance:")
+  print(model)
 }
 #if data are clustered, clustered CV is used:
 if(design=="clustered"){
   folds <- CreateSpacetimeFolds(trainDat, spacevar="clstrID",k=nclusters)
   model <- train(trainDat[,names(predictors)],
                  trainDat$response,
-                     method="rf",
+                 method="rf",
                  importance=TRUE,
                  tuneGrid = expand.grid(mtry = c(2:length(names(predictors)))),
                  trControl = trainControl(method="cv",index=folds$index,savePredictions = TRUE))
@@ -337,20 +336,20 @@ predsd <- RFsd(predictors,model)
 
 #DI with weights:
 paste0("correlation coefficient (true error~DI)= ",
-cor(values(truediff),values(AOA$DI),use="complete.obs"))
+       cor(values(truediff),values(AOA$DI),use="complete.obs"))
 #DI no weights:
 paste0("correlation coefficient (true error~DI estimated without weights)= ",
-cor(values(truediff),values(AOA_noWeights$DI),use="complete.obs"))
+       cor(values(truediff),values(AOA_noWeights$DI),use="complete.obs"))
 
 #comparison prediction~ref
 paste0("R² (prediction~reference)= ",
-summary(lm(values(response)~values(prediction)))$r.squared)
+       summary(lm(values(response)~values(prediction)))$r.squared)
 
 paste0("r (prediction~reference)= ",
-cor(values(response),values(prediction),use = "complete.obs"))
+       cor(values(response),values(prediction),use = "complete.obs"))
 
 paste0("RMSE (prediction,reference)= ",
-rmse(values(response),values(prediction)))
+       rmse(values(response),values(prediction)))
 
 #comparison prediction for the AOA~ref
 print(attributes(AOA)$aoa_stats)
@@ -403,19 +402,32 @@ txts <- c("a","b","c","d","e","f")
 for (i in 1:nlayers(compare)){
   cols <-viridis(100)
   txt <- list("sp.text", c(-12,72), txts[i])
+  zlims <- NULL
+  if(names(compare)[i]%in%c("response","prediction")){
+    lims <- seq(min(values(compare[[c("response","prediction")]]),na.rm=TRUE),
+                max(values(compare[[c("response","prediction")]]),na.rm=TRUE),
+                (max(values(compare[[c("response","prediction")]]),na.rm=TRUE)-
+                   min(values(compare[[c("response","prediction")]]),na.rm=TRUE))/100)
+  } else{
+    lims <- seq(min(values(compare[[i]]),na.rm=TRUE),
+                max(values(compare[[i]]),na.rm=TRUE),
+                (max(values(compare[[i]]),na.rm=TRUE)-
+                   min(values(compare[[i]]),na.rm=TRUE))/100)
+    
+  }
   p[[i]] <- spplot(compare[[i]],col.regions = cols, 
-                   sp.layout=list(txt))
+                   sp.layout=list(txt),at=lims,pretty=TRUE)
 }
 
+lims <- seq(min(values(compare[[c("response","prediction")]]),na.rm=TRUE),
+            max(values(compare[[c("response","prediction")]]),na.rm=TRUE),
+            (max(values(compare[[c("response","prediction")]]),na.rm=TRUE)-
+               min(values(compare[[c("response","prediction")]]),na.rm=TRUE))/100)
+p[[i+1]] <- sp::spplot(prediction, col.regions=viridis(100),at=lims,pretty=TRUE,
+                       sp.layout=list(list("sp.text", c(-12,72), txts[i+1])))+sp::spplot(AOA$AOA,col.regions=c("violetred","transparent"))
 
-p[[i+1]] <- sp::spplot(prediction, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), txts[i+1])))+sp::spplot(AOA$AOA,col.regions=c("violetred","transparent"))
 
-#p[[i+1]] <- sp::spplot(AOA_new$expectedError,
-#                       col.regions=viridis(100),
-#                       sp.layout=list(list("sp.text", c(-12,72), txts[i+1])))+
-#  sp::spplot(AOA_new$AOA,col.regions=c("violetred","transparent"))
-
-png("../figures/caseStudy_PredRef.png",width=24, height=14,units = "cm",res=300)
+png("../figures/caseStudy_PredRef.png",width=24, height=14,units = "cm",res=350)
 grid.arrange(p[[1]],p[[2]], p[[3]],
              p[[4]],p[[5]],p[[6]],
              nrow=2,ncol=3)
@@ -435,40 +447,40 @@ include_graphics("../figures/caseStudy_PredRef.png")
 
 ```{r lm_uncert_sp, echo=FALSE}
 if(design!="clustered"){
- print("not applicable here because no clustered design was chosen") 
+  print("not applicable here because no clustered design was chosen") 
 }
 if(design=="clustered"){
   prediction_random <- predict(predictors,model_random)
+  # results for random CV model:
+  predictionAOI <- prediction_random
+  values(predictionAOI)[values(AOA_random$AOA)==0] <- NA
+  print(paste0("R^2 AOA= ",summary(lm(values(response)~values(predictionAOI)))$r.squared))
+  print(paste0("r AOA= ",cor(values(response),values(predictionAOI),use="complete.obs")))
   
-predictionAOI <- prediction_random
-values(predictionAOI)[values(AOA_random$AOA)==0] <- NA
-print(paste0("R^2 AOA= ",summary(lm(values(response)~values(predictionAOI)))$r.squared))
-print(paste0("r AOA= ",cor(values(response),values(predictionAOI),use="complete.obs")))
-
-print(paste0("RMSE AOA= ", rmse(values(response),values(predictionAOI))))
-
-predictionNOTAOI <- prediction_random
-values(predictionNOTAOI)[values(AOA_random$AOA)==1] <- NA
-print(paste0("R^2 outside AOA= ",summary(lm(values(response)~values(predictionNOTAOI)))$r.squared))
-print(paste0("r outside AOA= ",cor(values(response),values(predictionNOTAOI),use="complete.obs")))
-print(paste0("RMSE outside AOA= ",rmse(values(response),values(predictionNOTAOI))))
+  print(paste0("RMSE AOA= ", rmse(values(response),values(predictionAOI))))
+  
+  predictionNOTAOI <- prediction_random
+  values(predictionNOTAOI)[values(AOA_random$AOA)==1] <- NA
+  print(paste0("R^2 outside AOA= ",summary(lm(values(response)~values(predictionNOTAOI)))$r.squared))
+  print(paste0("r outside AOA= ",cor(values(response),values(predictionNOTAOI),use="complete.obs")))
+  print(paste0("RMSE outside AOA= ",rmse(values(response),values(predictionNOTAOI))))
 }
 ```
 
 ```{r compare_spatial,echo=FALSE}
 if (design=="clustered"){
-p <- list()
-p[[1]] <-  spplot(AOA$DI,col.regions = cols,
-            sp.layout=list(list("sp.points", samplepoints, col = "red", first = FALSE),list("sp.text", c(-12,72), "a")))
-p[[2]] <- sp::spplot(prediction, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), "b")))+sp::spplot(AOA$AOA,col.regions=c("violetred","transparent"))
-
-p[[3]] <- sp::spplot(prediction_random, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), "c")))+sp::spplot(AOA_random$AOA,col.regions=c("violetred","transparent"))
-
-png("../figures/caseStudy_SPvsRandom.png",width=24, height=9,units = "cm",res=300)
-
-grid.arrange(p[[1]],p[[2]], p[[3]],
-             nrow=1,ncol=3)
-invisible(dev.off())
+  p <- list()
+  p[[1]] <-  spplot(AOA$DI,col.regions = cols,
+                    sp.layout=list(list("sp.points", samplepoints, col = "red", first = FALSE),list("sp.text", c(-12,72), "a")))
+  p[[2]] <- sp::spplot(prediction, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), "b")))+sp::spplot(AOA$AOA,col.regions=c("violetred","transparent"))
+  
+  p[[3]] <- sp::spplot(prediction_random, col.regions=viridis(100),sp.layout=list(list("sp.text", c(-12,72), "c")))+sp::spplot(AOA_random$AOA,col.regions=c("violetred","transparent"))
+  
+  png("../figures/caseStudy_SPvsRandom.png",width=24, height=9,units = "cm",res=300)
+  
+  grid.arrange(p[[1]],p[[2]], p[[3]],
+               nrow=1,ncol=3)
+  invisible(dev.off())
 }
 ```
 
@@ -507,9 +519,9 @@ ggplot(dat_all, aes(value,true_abs_error)) +
                        breaks = 10^(0:3),
                        colors=viridis(10, alpha=.7))+
   theme_bw()+
- theme(legend.title = element_text( size = 10))+
+  theme(legend.title = element_text( size = 10))+
   geom_point(data=dat2,aes(DI,error))#+
-  #stat_smooth(data=dat2,aes(DI,error),method="lm",se = FALSE,col="red")
+#stat_smooth(data=dat2,aes(DI,error),method="lm",se = FALSE,col="red")
 
 invisible(dev.off())
 ```
@@ -524,7 +536,7 @@ include_graphics("../figures/hexbin.png")
 ### Relationship between the DI and the requested performance measure (here RMSE) 
 
 The relationship between error and DI can be used to limit predictioons to an area (within the AOA) where a required performance (e.g. RMSE, R2, Kappa, Accuracy) applies.
-This can be done using the result of calibrate_aoa which used the relationship analyzed in a window of DI values. The corresponding model (here: shape constrained additive models) can be used to estimate the performance on a pixel level, which then allows limiting predictions using a threshold.
+This can be done using the result of calibrate_aoa which used the relationship analyzed in a window of DI values. The corresponding model (here: shape constrained additive models which is the default: Monotone increasing P-splines with the dimension of the basis used to represent the smooth term is 6 and a 2nd order penalty.) can be used to estimate the performance on a pixel level, which then allows limiting predictions using a threshold.
 
 ```{r userAOA_cv, warning=FALSE, message=FALSE, echo=FALSE,include=FALSE}
 
@@ -547,10 +559,10 @@ slidingw <- attributes(AOA_new)$calib$group_stats
 reference_metric <- apply(slidingw,1,function(x){
   x_df <- data.frame(t(x))
   subs_ref <- reference_perf[reference_perf$DI>x_df$ll&
-                   reference_perf$DI<x_df$ul,]
+                               reference_perf$DI<x_df$ul,]
   rmse(subs_ref[,"pred"],subs_ref[,"obs"])
 })
-  
+
 
 #cairo_pdf("../figures/AOA_calibrate_singleCV.pdf", width=6, height=5)
 # plot(recl$DI,recl$RMSE,xlab="DI",ylab=model$metric)
@@ -558,7 +570,7 @@ reference_metric <- apply(slidingw,1,function(x){
 # legend("topleft",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,1,NA),col=c("black","red","black"),
 #        legend=c("CV","Truth","model"),bty="n")
 #   lines(seq(0,max(reference_perf$DI,na.rm=T),0.01),predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0,max(reference_perf$DI,na.rm=T),0.01))),lwd=1,lty=2,col="black")
-  
+
 #invisible(dev.off())
 
 ```
@@ -586,7 +598,7 @@ if(nrow(model$trainingData>=250)){
 }
 
 AOA_new_MCV <- calibrate_aoa(AOA,model,multiCV=TRUE,length.out = 10,
-                         window.size = window.size,showPlot=FALSE)
+                             window.size = window.size,showPlot=FALSE)
 
 recl_mcv <- attributes(AOA_new_MCV)$calib$group_stats
 
@@ -598,7 +610,7 @@ slidingw <- attributes(AOA_new_MCV)$calib$group_stats
 reference_metric_MCV <- apply(slidingw,1,function(x){
   x_df <- data.frame(t(x))
   subs_ref <- reference_perf_MCV[reference_perf_MCV$DI>x_df$ll&
-                   reference_perf_MCV$DI<x_df$ul,]
+                                   reference_perf_MCV$DI<x_df$ul,]
   rmse(subs_ref[,"pred"],subs_ref[,"obs"])
 })
 
@@ -611,9 +623,9 @@ plot(recl$DI,recl$RMSE,xlab="DI",ylab=model$metric,xlim=c(min(recl$DI,recl_mcv$D
 points(recl$DI,reference_metric,col="red")
 legend("topright",lty=c(NA,NA,2),lwd=c(NA,NA,2),pch=c(1,1,NA),col=c("black","red","blue"),
        legend=c("CV","Truth","model"),bty="n")
-  lines(seq(0,max(recl$DI),0.01),
-        predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0, max(recl$DI),0.01))),lwd=2,lty=2,col="blue")
-  legend("topleft", "(a)", bty="n") 
+lines(seq(0,max(recl$DI),0.01),
+      predict(attributes(AOA_new)$calib$model,data.frame("DI"=seq(0, max(recl$DI),0.01))),lwd=2,lty=2,col="blue")
+legend("topleft", "(a)", bty="n") 
 
 
 
@@ -622,8 +634,7 @@ plot(recl_mcv$DI,recl_mcv$RMSE,xlab="DI",
      ylim=c(min(recl$RMSE,recl_mcv$RMSE,na.rm=T),max(recl$RMSE,recl_mcv$RMSE,na.rm=T)),yaxt="n")
 
 points(recl_mcv$DI,reference_metric_MCV,col="red")
-#legend("topleft",lty=c(NA,NA,2),lwd=c(NA,NA,1),pch=c(1,1,NA),col=c("black","red","black"),
-#       legend=c("CV","Truth","model"),bty="n")
+
 lines(seq(0,max(recl_mcv$DI),0.01),
       predict(attributes(AOA_new_MCV)$calib$model,data.frame("DI"=seq(0, max(recl_mcv$DI),0.01))),
       col="blue",lty=2,lwd=2)
@@ -632,20 +643,18 @@ legend("topleft", "(b)", bty="n")
 invisible(dev.off())
 
 
-stck <- stack(AOA_new$expectedError,
-              AOA_new_MCV$expectedError)
+stck <- stack(AOA_new[[3]],
+              AOA_new_MCV[[3]])
 
 tmp <- AOA_new$AOA
 values(tmp)<- NA
-#ovl <- stack(tmp,AOA_new$AOA,AOA_new_MCV$AOA)
 ovl <- stack(AOA_new$AOA,AOA_new_MCV$AOA)
 
 png(paste0("../figures/errormap_calib_",design,".png"),width=18, height=9,units = "cm",res=300)
-spplot(stck,col.regions = cols,
-      # names.attr=c('True absolute error', 'Estimated RMSE (single CV)',"Estimated RMSE (multiple CV)"),
-      names.attr=c('Estimated RMSE (single CV)',"Estimated RMSE (multiple CV)"),
-        par.settings =list(strip.background=list(col="grey")))+
-       spplot(ovl,col.regions=c("violetred","transparent"))
+spplot(stck,col.regions = cols,,
+       names.attr=c('Estimated RMSE (single CV)',"Estimated RMSE (multiple CV)"),
+       par.settings =list(strip.background=list(col="grey")))+
+  spplot(ovl,col.regions=c("violetred","transparent"))
 
 invisible(dev.off())
 ```
