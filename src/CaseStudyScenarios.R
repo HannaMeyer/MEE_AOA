@@ -180,7 +180,7 @@ for (setting in 1:nrow(settings)){
 
   ### AOA calib
   AOA_calib <- calibrate_aoa(AOA,model,window.size = 10,multiCV = TRUE,length.out = 10,showPlot = FALSE)
-  resultsTable$calibAOA_R2[setting] <- summary(lm(values(AOA_calib[[3]])~values(truediff)))$r.squared
+  resultsTable$calibAOA_R2[setting] <- summary(lm(values(AOA_calib$AOA[[3]])~values(truediff)))$r.squared
 
 
 
