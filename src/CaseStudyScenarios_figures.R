@@ -15,7 +15,6 @@ caseStudy <- dat[dat$npoints==50&dat$seed==10&
                          means[,1]==3&means[,2]==-1,]
 
 
-
 #### How well does the model CV error represents the prediction error inside and outside the AOA?
 
 pdf("../figures/comparison_modelRuns_scatter.pdf",width=9,height=5)
