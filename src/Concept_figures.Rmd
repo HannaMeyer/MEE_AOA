@@ -1,12 +1,15 @@
 ---
 title: "Method of AOA explained in figures"
 subtitle: "Supplementary to the paper 'Predicting into unknown space? Estimating the area of applicability of spatial prediction models'"
-author: "Hanna Meyer"
-date: "18/10/2020"
+author: "Hanna Meyer, Edzer Pebesma"
+date: "17/04/2021"
 header-includes:
   - \usepackage{float}
   - \floatplacement{figure}{H} 
-output: pdf_document
+output:
+  pdf_document:
+    toc: true
+    number_sections: true
 ---
 
 ```{r setup, include=FALSE}
@@ -48,30 +51,35 @@ var1="bio1"
 var2="bio19"
 ```
 
-## General problem of random forests in "unknown environments"
+# Introduction
+This document is a supplement to the paper 'Predicting into unknown space? Estimating the area of applicability of spatial prediction models'. It visualizes the idea and workflow of the method to estimate the area of applicability (AOA) of prediction models in figures. For detailed explanations please see the manuscript.
+For reproducing this document, please use the Rmd file available at \url{https://github.com/HannaMeyer/MEE_AOA}.
+
+# General problem of random forests in "unknown environments"
 
 ```{r Fig_predintervals,include = FALSE}
-f = function(x, z = 0.8, b = 0, e = 0.3) {
+# simulate example data for a linear model:
+f <- function(x, z = 0.8, b = 0, e = 0.3) {
   z * x+ b + rnorm(length(x)) * e
 }
 set.seed(131)
-x = sort(runif(30, 0.7, 1.2))
-y = f(x, z = 1)
-m = lm(y~x)
-x_new = seq(0,2.2,length.out=100)
-newdata = data.frame(x = x_new, true = f(x_new, z = 1, e = 0))
-p = predict(m, newdata, interval = "prediction")
-ylim = range(p)
-ylim = c(min(newdata$true),max(newdata$true))
-xlim = c(0.1,2.1)
-xlab = "predictor"
-ylab = "response"
+x <- sort(runif(30, 0.7, 1.2))
+y <- f(x, z = 1)
+m <- lm(y~x)
+x_new <- seq(0,2.2,length.out=100)
+newdata <- data.frame(x = x_new, true = f(x_new, z = 1, e = 0))
+p <- predict(m, newdata, interval = "prediction")
+ylim <- range(p)
+ylim <- c(min(newdata$true),max(newdata$true))
+xlim <- c(0.1,2.1)
+xlab <- "predictor"
+ylab <- "response"
 
 pdf("../figures/concept_figures/fig1.pdf",width=10,height=5)
 par(mfrow = c(1,2 ))
 par(mar = c(5.1, 4.1, 2.1, 0.1))
 plot(y~x, xlim = xlim, ylim = ylim, xlab = xlab, ylab = ylab,pch=16)
-newdata = cbind(newdata, p)
+newdata <- cbind(newdata, p)
 lines(true~x, newdata, col = 'green')
 lines(fit~x, newdata, col = 'black')
 lines(lwr~x, newdata, lty = 2, col = 'black')
@@ -81,7 +89,7 @@ legend("bottomright",lty=c(1,2,1,NA),pch=c(NA,NA,NA,16),
        col=c("black","black","green","black"),
        legend=c("prediction","interval","truth","training"),bty="n")
 
-
+# simulate example data for a random forest model:
 f <- function(x){
   wave.1 <- sin(3*x)+1
   wave.2 <- sin(12*x)+1
@@ -101,21 +109,21 @@ xlim <- c(0.1,2.1)
 
 #### Random Forest with predictions from individual trees
 set.seed(10)
-rf = randomForest(y~x, data.frame(x=x,y=y))
-pr = predict(rf, newdata, predict.all = TRUE)
+rf <- randomForest(y~x, data.frame(x=x,y=y))
+pr <- predict(rf, newdata, predict.all = TRUE)
 par(mar = c(5.1, 1.1, 2.1, 2.1))
 plot(y~x,xlim=xlim,ylim=ylim,xlab = xlab, ylab = NA,yaxt="n",pch=16)
 lines(true~x, newdata, col = 'green')
 lines(pr$aggregate~newdata$x, col = 'black')
-lwr = apply(pr$individual, 1, quantile, 0.025)
-upr = apply(pr$individual, 1, quantile, 0.975)
+lwr <- apply(pr$individual, 1, quantile, 0.025)
+upr <- apply(pr$individual, 1, quantile, 0.975)
 lines(lwr~newdata$x, col = 'black', lty = 2)
 lines(upr~newdata$x, col = 'black', lty = 2)
 legend("topleft",legend="b",bty="n")
 
 ### Quantile regression forest
 #set.seed(10)
-#qrf =  quantregForest(data.frame(x),y)
+#qrf <- quantregForest(data.frame(x),y)
 #pr  <- predict(qrf,  newdata)
 #par(mar = c(5.1, 1.1, 2.1, 2.1))
 #plot(y~x,xlim=xlim,ylim=ylim,xlab = xlab, ylab = NA,yaxt="n",pch=16)
@@ -132,11 +140,12 @@ dev.off()
 include_graphics("../figures/concept_figures/fig1.pdf")
 ```
 
-## Method
-
+# Method of the DI and AOA estimation
 
 
 ```{r data, message = FALSE,include = FALSE}
+
+# get example data from Worldclim:
 predictors_global <- getData('worldclim', var='bio', res=10, path='../data/')
 wp <- extent(studyarea)
 predictors <- crop(predictors_global,wp)
@@ -145,12 +154,16 @@ predictors <- crop(predictors_global,wp)
 mask <- predictors[[1]]
 values(mask)[!is.na(values(mask))] <- 1
 
+# create a virtual response:
 response <- generateSpFromPCA(predictors[[simulateResponse]],
                               means = meansPCA,sds = sdPCA, plot=F)$suitab.raster
 mask <- rasterToPolygons(mask,dissolve=TRUE)
+
+#simulate sample data:
 set.seed(seed)
 samplepoints <- spsample(mask,npoints,"random")
 
+# compile training data set:
 trainDat <- extract(predictors,samplepoints,df=TRUE)
 trainDat <- trainDat[,c(var1,var2)]
 names(trainDat) <- c("A","B")
@@ -159,7 +172,7 @@ trainDat$response <- extract (response,samplepoints)
 ```
 
 ```{r model,include = FALSE}
-
+# train a model:
 set.seed(seed)
 folds <- createFolds(trainDat$response,k=3,returnTrain = TRUE)
 set.seed(seed)
@@ -205,7 +218,7 @@ newdat[,"B"] <- newdat_scaled[,"B"]*weights[,"B"]
 newpoint <- 4010
 ```
 
-# Create Sample data, scale and weight them
+## Create Sample data, scale and weight them
 
 
 ```{r Fig_weightedData,include = FALSE}
@@ -248,14 +261,14 @@ title(xlab="Importance", line=1.2,cex.lab=0.75,adj=0)
 dev.off()
 ```
 
-```{r figs1, echo=FALSE,out.width="100%",fig.cap="Initial situation: Training samples in a multidimensional (here 2) predictor space (a). First, the predictor space is scaled (second x and y axis in the left plot) and then and weighted (plot right) according to the estimated variable importance shown in the topright corner."}
+```{r figs1, echo=FALSE,out.width="100%",fig.cap="Initial situation: Training samples in a multidimensional (here 2) predictor space (a). First, the predictor space is scaled (second x and y axis in the left plot) and then weighted (plot right) according to the estimated variable importance shown in the topleft corner."}
 include_graphics("../figures/concept_figures/weightedData.pdf")
 ```
 
 
 
 
-# Calculate the DI within the training data to get the threshold for the AOA
+## Calculate the DI within the training data to get the threshold for the AOA
 
 ```{r prep,include=FALSE}
 ### DI of training data
@@ -398,14 +411,12 @@ dev.off()
 ```
 
 
-```{r figs3, echo=FALSE,out.width="100%",fig.cap="To answer the question if the trained model can be applied to a new data point, a threshold is used. This is the outlier-removed maximum DI of the cross-validated training data. The calculation of the DI of the training data is shown here for one example: The example data point is in fold 3 of the model. Therefore the distance to the nearest training data point NOT located in fold 3 is calculated (b) and this distance divided by the average of the mean distances between all training data (a). The DI is calculated for each training data point (boxplot) and the threshold is then derived from these DI values, so that a new data point (c) is outside the AOA if it is more dissimilar than the dissimilarity observed within the training data."}
+```{r figs3, echo=FALSE,out.width="100%",fig.cap="To answer the question if the trained model can be applied to a new data point, a threshold is used. This is the outlier-removed maximum DI of the cross-validated training data. The calculation of the DI of the training data is shown here for one example: The example data point is in fold 3 of the model. Therefore the distance to the nearest training data point NOT located in fold 3 is calculated (b) and this distance divided by the average of the mean distances between all training data (a). The DI is calculated for each training data point (boxplot) and the threshold is then derived from these DI values (upper whisker), so that a new data point (c) is outside the AOA if it is more dissimilar than the dissimilarity observed within the training data."}
 include_graphics("../figures/concept_figures/DI_training.pdf")
 ```
 
 
-
-
-# Estimate the AOA for each new potential data point
+## Estimate the AOA for each new potential data point
 
 ```{r Fig_DI_and_AOA,include = FALSE}
 
@@ -442,19 +453,19 @@ par(mfrow=c(1,1))
 ```
 
 
-```{r figs4, echo=FALSE,out.width="100%",fig.cap="The AOA threshold can be applied to the entire predictor space to derive the AOA (b) from the DI (a) of each new data point."}
+```{r figs4, echo=FALSE,out.width="100%",fig.cap="The AOA threshold can be applied to the predictor space of the entire area of interest to derive the AOA (b) from the DI (a) of each new data point which is to be predicted."}
 include_graphics("../figures/concept_figures/AOA.pdf")
 ```
 
 
 
-# Using the performance~DI relationship to get a quantitative uncertainty measure
+## Using the performance~DI relationship to get a quantitative uncertainty measure
 
-## Estimating the relationship using the cross-validated data
+### Estimating the relationship using the cross-validated data
 
 Relationship between the DI and RMSE based on the cross-validation folds used during model training and validation. RMSE was calculated in a sliding window of 10 along the DI. To estimate the RMSE based on the DI, a shape constrained additive model was used.
 
-```{r}
+```{r, include=FALSE}
 pdf("../figures/concept_figures/AOA_calib_singleCV.pdf",width=10,height=7)
 singleCVAOA <- calibrate_aoa(newdat_aoa,model,window.size = 10)
 invisible(dev.off())
@@ -462,7 +473,7 @@ invisible(dev.off())
 
 
 
-```{r, echo=FALSE,out.width="100%",fig.cap="Relationship between the DI and RMSE within the AOA based on single cross-validation. RMSE was calculated in a sliding window along the DI. To estimate the RMSE based on the DI, a shape constrained additive model was used. .Note that in this small example there is no strong relationship between DI and RMSE."}
+```{r, echo=FALSE,out.width="75%",fig.cap="Relationship between the DI and RMSE within the AOA based on single cross-validation. RMSE was calculated in a sliding window (here: size of 10) along the DI. To estimate the RMSE based on the DI, a shape constrained additive model was used. Note that in this small example there is no strong relationship between DI and RMSE. Please see the paper for a more meaningful example."}
 include_graphics("../figures/concept_figures/AOA_calib_singleCV.pdf")
 ```
 
@@ -470,16 +481,16 @@ include_graphics("../figures/concept_figures/AOA_calib_singleCV.pdf")
 
 
 
-## Using Multi-purpose CV
+### Using Multi-purpose CV
 
-The results shown above are based on a singl-purpose CV.
+The results shown above are based on a single-purpose CV.
 We can also estimate the relationship between performance and DI using multiple CVs.
 Here, we split the data several times into folds using clusters in the predictor space with the number of clusters ranging between 3 and the number of data points (=LOOCV).
 The following figure shows how data splitting can look like for different numbers of k.
 
 ```{r, warning= FALSE, echo = FALSE}
 
-pdf("../figures/concept_figures/MultiCVsplits.pdf",width=10,height=10)
+pdf("../figures/concept_figures/MultiCVsplits.pdf",width=10,height=4)
 par(mfrow=c(1,3),mar=c(4,4,1,1))
 k <- 4
 clstr <- kmeans(trainDat_weights,centers = k)
@@ -504,31 +515,26 @@ plot(trainDat_weights$A,trainDat_weights$B,col=rainbow(k)[clstr$cluster],
      xlim=c(min(newdat[,"A"]),max(newdat[,"A"])),
      ylim=c(min(newdat[,"B"]),max(newdat[,"B"])),asp=1)
 legend("topleft",legend=paste0("k=",k),bty="n")
-dev.off()
+invisible(dev.off())
 
 ```
 
 
-```{r, echo=FALSE,out.width="100%",fig.cap="Example of multi-purpose cross-validation folds that have been assigned based on clusters in the predictor space."}
+```{r, echo=FALSE,out.width="100%",fig.cap="Example of multi-purpose cross-validation folds where data are split into folds (colors) based on clusters in the predictor space. This is done for different number of clusters, here shown for k=4, k=10, and k=149."}
 include_graphics("../figures/concept_figures/MultiCVsplits.pdf")
 ```
 
 
+Using multi-purpose CVs allows expanding the AOA and also allows giving a more robust estimate for the relationship. The relationship can be used to estimate the DI-dependent prediction performance for each new data point based on its DI.
 
-
-Using multi-purpose CVs allows expanding the AOA and also allows giving a more robust estimate for the relationship.
-The relationship can be used to estimate the error for each new data point based on the DI.
-
-```{r, warning= FALSE}
+```{r, warning= FALSE, echo=FALSE}
 pdf("../figures/concept_figures/AOA_calib_multiCV.pdf",width=10,height=7)
 multiCVAOA <- calibrate_aoa(newdat_aoa,model,window.size = 25,multiCV = TRUE)
 invisible(dev.off())
 ```
 
 
-
-
-```{r, echo=FALSE,out.width="100%",fig.cap="Relationship between the DI and RMSE within the AOA based on multi-purpose cross-validation. RMSE was calculated in a sliding window along the DI. To estimate the RMSE based on the DI, a shape constrained additive model was used. Note that in this small example there is no strong relationship between DI and RMSE."}
+```{r, echo=FALSE,out.width="75%",fig.cap="Relationship between the DI and RMSE within the AOA based on multi-purpose cross-validation. RMSE was calculated in a sliding window (here size of 25) along the DI. To estimate the RMSE based on the DI, a shape constrained additive model was used. Note that in this small example there is no strong relationship between DI and RMSE. Please see the paper for a more meaningful example."}
 include_graphics("../figures/concept_figures/AOA_calib_multiCV.pdf")
 ```
 
@@ -569,7 +575,7 @@ legend("topright",pt.bg=c("black","white","red"),
 dev.off()
 ```
 
-```{r figs_fullgradient, echo=FALSE,out.width="100%",fig.cap=""}
+```{r figs_fullgradient, echo=FALSE,out.width="70%",fig.cap=""}
 include_graphics("../figures/concept_figures/fullgradientcovered.pdf")
 ```
 
@@ -594,10 +600,9 @@ dev.off()
 ```
 
 
-```{r figs_dist2allpoints, echo=FALSE,out.width="100%",fig.cap=""}
+```{r figs_dist2allpoints, echo=FALSE,out.width="50%",fig.cap=""}
 include_graphics("../figures/concept_figures/dist2allpoints.pdf")
 ```
-
 
 ## How would the AOA look like for Fig. 1 of the manuscript?
 
@@ -638,6 +643,6 @@ legend("topleft",legend="b",bty="n")
 dev.off()
 ```
 
-```{r figsPredIntervalsAOA, echo=FALSE,out.width="100%",fig.cap="Hypothetical example of a relationship between a virtual predictor and response variable as well as the predictions made by Random Forest already presented in Figure 1. Low values in the dissimilarity index (DI) do not necessarily mean that the prediction error is high. As moving away from the last training data point (x= 1.7), the value of the DI increases (b). However, the error does not necessarily increases in the same way (comparing the predictions with the truth in a). The uncertainty must still be considered as very high because this area of the predictor space is unknown to the model. The area of applicability (AOA) is derived using the outlier-removed maximum DI observed in the cross-validated training data as a threshold (dashed line in b) and is used to exclude predictions in areas where dissimilarity is too high (grey area in a)."}
+```{r figsPredIntervalsAOA, echo=FALSE,out.width="75%",fig.cap="Hypothetical example of a relationship between a virtual predictor and response variable as well as the predictions made by Random Forest already presented in Figure 1. Low values in the dissimilarity index (DI) do not necessarily mean that the prediction error is high. As moving away from the last training data point (x= 1.7), the value of the DI increases (b). However, the error does not necessarily increases in the same way (comparing the predictions with the truth in a). The uncertainty must still be considered as very high because this area of the predictor space is unknown to the model. The area of applicability (AOA) is derived using the outlier-removed maximum DI observed in the cross-validated training data as a threshold (dashed line in b) and is used to exclude predictions in areas where dissimilarity is too high (grey area in a)."}
 include_graphics("../figures/concept_figures/fig_last.pdf")
 ```

@@ -5,7 +5,7 @@ https://arxiv.org/abs/2005.07939
 * The case study described in the paper can be reproduced using the "CaseStudy.Rmd" in the src folder. 
 The results using different case study settings can be found in figures/caseStudyExamples.
 
-* "Concept_figures.R" creates the conceptual figures used in the paper. 
+* "Concept_figures.Rmd" creates the conceptual figures used in the paper. 
 
 * "CaseStudyScenarios.R" was used to compare the DI and AOA for different scenarios of response variable, sample size and random seed. 
 The script was run on a HPC system. 

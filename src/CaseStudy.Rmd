@@ -302,6 +302,20 @@ predtrain <- predict(model$finalModel,trainDat,predict.all=TRUE)
 sdpred <-  apply(predtrain$individual,1,sd)
 ```
 
+```{r uncert_weights,message=FALSE,include=FALSE}
+
+png("../figures/caseStudy_DIweight.png",width=24, height=9,units = "cm",res=300)
+spplot(stack(AOA_noWeights$DI,AOA$DI),col.regions=viridis(100),
+  names.attr=c('DI (unweighted)',"DI (weighted)"),
+   par.settings =list(strip.background=list(col="grey")))
+invisible(dev.off())
+
+```
+
+
+```{r, echo=FALSE, out.width="100%",fig.cap="Comparison between the DI using either weighted (a) or unweighted (b) distances in the predictor space"}
+include_graphics("../figures/caseStudy_DIweight.png")
+```
 
 
 # Standard deviation from individual trees for comparison
@@ -653,9 +667,11 @@ invisible(dev.off())
 
 ```{r}
 # model using single-CV
+print(paste0("maximum DI included in the AOA: ",max(recl$DI,na.rm=T)))
 print(summary(attributes(AOA_new$AOA)$calib$model))
 
 # model using multiple-CV
+print(paste0("maximum DI included in the AOA: ",max(recl_mcv$DI,na.rm=T)))
 print(summary(attributes(AOA_new_MCV$AOA)$calib$model))
 ```
 
