@@ -1,6 +1,6 @@
 ---
-title: "Method of AOA explained in figures"
-subtitle: "Supplementary to the paper 'Predicting into unknown space? Estimating the area of applicability of spatial prediction models'"
+title: "Method of the 'Area of Applicability' (AOA) explained in figures"
+subtitle: "Supplement to the paper 'Predicting into unknown space? Estimating the area of applicability of spatial prediction models' (Methods in Ecology and Evolution)"
 author: "Hanna Meyer, Edzer Pebesma"
 date: "17/04/2021"
 header-includes:
@@ -579,9 +579,9 @@ dev.off()
 include_graphics("../figures/concept_figures/fullgradientcovered.pdf")
 ```
 
-## Why can't we use the distance to all data points instead of distance to the nearest neighbor?
+## Why can't we use the distance to all data points, or hulls, instead of distance to the nearest neighbor?
 
-The distance to all training points is not helpful here because then gaps could not be considered. But gaps are equally problematic (see our first figure in the manuscript) and using the average distance to training points cannot account for that. In the example below the new data point even has a lower average distance to training data although it is clearly in an area not covered by training data. 
+The distance to all training points is not helpful here because then gaps could not be considered. But gaps are equally problematic (see our first figure in the manuscript) and using the average distance to training points cannot account for that. In the example below the new data point even has a lower average distance to training data although it is clearly in an area not covered by training data. The problem is similar for hulls, that do not take gaps in the predictor space into account.  
 
 ```{r Fig_dist2all,include = FALSE}
 
