@@ -52,7 +52,9 @@ var2="bio19"
 ```
 
 # Introduction
-This document is a supplement to the paper 'Predicting into unknown space? Estimating the area of applicability of spatial prediction models'. It visualizes the idea and workflow of the method to estimate the area of applicability (AOA) of prediction models in figures. For detailed explanations please see the manuscript.
+This document is a supplement to the paper 'Predicting into unknown space? Estimating the area of applicability of spatial prediction models'. It visualizes the idea and workflow of the method to estimate the area of applicability (AOA) of prediction models. 
+Note that the purpose of this document is to visualize the idea of the method. Hence, the dataset is small and not a scientifically meaningful prediction task.
+For application in more realistic applications, as well as for detailed explanations please see the manuscript.
 For reproducing this document, please use the Rmd file available at \url{https://github.com/HannaMeyer/MEE_AOA}.
 
 # General problem of random forests in "unknown environments"
@@ -411,7 +413,7 @@ dev.off()
 ```
 
 
-```{r figs3, echo=FALSE,out.width="100%",fig.cap="To answer the question if the trained model can be applied to a new data point, a threshold is used. This is the outlier-removed maximum DI of the cross-validated training data. The calculation of the DI of the training data is shown here for one example: The example data point is in fold 3 of the model. Therefore the distance to the nearest training data point NOT located in fold 3 is calculated (b) and this distance divided by the average of the mean distances between all training data (a). The DI is calculated for each training data point (boxplot) and the threshold is then derived from these DI values (upper whisker), so that a new data point (c) is outside the AOA if it is more dissimilar than the dissimilarity observed within the training data."}
+```{r figs3, echo=FALSE,out.width="100%",fig.cap="Training samples in a multi-dimensional (here 2-dimensional) predictor space that has been scaled and weighted. First, the average of the mean distances between all training data is calculated (a). Next, the DI of the training data is calculated. For each training data point (shown here for one example), the distance to the nearest training data point not located in the same cross-validation fold is calculated (here visualized assuming a 3-fold cross-validation)(b). This distance is divided by the average of the mean distances between all training data (a) to derive the DI. The DI is calculated for each training data point (boxplot in b) and the threshold for the AOA is then derived from the upper whisker of the DI values. For a new data point, the DI is calculated accordingly (c). In this example, the DI is larger than the DI-threshold, indicating that this new data point falls outside the AOA."}
 include_graphics("../figures/concept_figures/DI_training.pdf")
 ```
 
@@ -453,17 +455,16 @@ par(mfrow=c(1,1))
 ```
 
 
-```{r figs4, echo=FALSE,out.width="100%",fig.cap="The AOA threshold can be applied to the predictor space of the entire area of interest to derive the AOA (b) from the DI (a) of each new data point which is to be predicted."}
+```{r figs4, echo=FALSE,out.width="100%",fig.cap="The AOA threshold can be applied to the predictor space of the entire area of interest to derive the AOA (b) from the DI (a) of each new data point which is to be predicted. Areas shown in white in b are outside the AOA."}
 include_graphics("../figures/concept_figures/AOA.pdf")
 ```
 
 
 
-## Using the performance~DI relationship to get a quantitative uncertainty measure
+## Using the DI to quantitatively express prediction uncertainty
 
 ### Estimating the relationship using the cross-validated data
 
-Relationship between the DI and RMSE based on the cross-validation folds used during model training and validation. RMSE was calculated in a sliding window of 10 along the DI. To estimate the RMSE based on the DI, a shape constrained additive model was used.
 
 ```{r, include=FALSE}
 pdf("../figures/concept_figures/AOA_calib_singleCV.pdf",width=10,height=7)
@@ -534,10 +535,9 @@ invisible(dev.off())
 ```
 
 
-```{r, echo=FALSE,out.width="75%",fig.cap="Relationship between the DI and RMSE within the AOA based on multi-purpose cross-validation. RMSE was calculated in a sliding window (here size of 25) along the DI. To estimate the RMSE based on the DI, a shape constrained additive model was used. Note that in this small example there is no strong relationship between DI and RMSE. Please see the paper for a more meaningful example."}
+```{r, echo=FALSE,out.width="75%",fig.cap="Relationship between the DI and RMSE within the AOA based on multi-purpose cross-validation. RMSE was calculated in a sliding window (here size of 25. Due to multiple cross-validations more data points are available which allows for a larger window size) along the DI. To estimate the RMSE based on the DI, a shape constrained additive model was used. Note that in this small example there is no strong relationship between DI and RMSE. Please see the paper for a more meaningful example."}
 include_graphics("../figures/concept_figures/AOA_calib_multiCV.pdf")
 ```
-
 
 
 
