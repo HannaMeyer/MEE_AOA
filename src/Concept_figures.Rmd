@@ -202,9 +202,9 @@ names(newdat_orig) <- c("A","B")
 
 
 newdat_pred <- predict(model,newdat_orig)
-newdat_aoa <- aoa(newdat_orig,model,returnTrainDI = TRUE)
+newdat_aoa <- aoa(newdat_orig,model)
 alldat <- data.frame(newdat_orig,"pred"=newdat_pred,
-                     "aoa"=newdat_aoa)
+                     "aoa"=data.frame("DI"=newdat_aoa$DI,"AOA"=newdat_aoa$AOA))
 
 trainDat_scaled<- scale(trainDat[,c("A","B")])
 scaleparam <- attributes(trainDat_scaled)
@@ -353,7 +353,7 @@ points(trainDat_weights[firstpoint,"A"],trainDat_weights[firstpoint,"B"],pch=1,c
 legend("topleft",pch=c(16,1),col=c("black","red"),legend=c("Training samples","Example"),bty="n")
 
 legend("topright",legend=paste0("Mean distance for example =", round(
-  trainDist_mean[firstpoint],2),"\nAverage mean distance between\nall training data =",round(attributes(newdat_aoa)$aoa_stats$Mean_train,2)),bty="n",cex=0.7)
+  trainDist_mean[firstpoint],2),"\nAverage mean distance between\nall training data =",round(newdat_aoa$parameters$trainDist_avrgmean,2)),bty="n",cex=0.7)
 
 
 
@@ -368,7 +368,7 @@ points(trainDat_weights[firstpoint,"A"],trainDat_weights[firstpoint,"B"],pch=1,c
 
 lines(c(trainDat_weights[firstpoint,"A"],trainDat_weights[whichIsMin_tr,"A"]),
       c(trainDat_weights[firstpoint,"B"],trainDat_weights[whichIsMin_tr,"B"]))
-text(trainDat_weights[whichIsMin_tr,"A"],trainDat_weights[whichIsMin_tr,"B"],paste0("dist=",round(mindist,2),", \nDI= ",round(mindist/attributes(newdat_aoa)$aoa_stats$Mean_train,2)),pos=2,cex=0.85)
+text(trainDat_weights[whichIsMin_tr,"A"],trainDat_weights[whichIsMin_tr,"B"],paste0("dist=",round(mindist,2),", \nDI= ",round(mindist/newdat_aoa$parameters$trainDist_avrgmean,2)),pos=2,cex=0.85)
 
 legend("topleft",pch=c(rep(16,3),1),col=c(cols_fold,"red"),legend=c("Fold 1","Fold 2","Fold 3","Example"),bty="n")
 
@@ -379,11 +379,11 @@ par(fig=c(0.57,0.68,0.44,1), new=TRUE)
 
 par(mgp=c(1,0.49,0))
 
-boxplot(attributes(newdat_aoa)$TrainDI,cex.axis=0.6,cex.lab=0.5,ylab="",yaxt="n")
+boxplot(newdat_aoa$parameters$trainDI,cex.axis=0.6,cex.lab=0.5,ylab="",yaxt="n")
 axis(side = 2, at = c(0,0.2,0.4,0.6),cex.axis=0.7)
-abline(boxplot.stats(attributes(newdat_aoa)$TrainDI)$stats[5],0,col=alpha("blue",0.5),lwd=2)
+abline(boxplot.stats(newdat_aoa$parameters$trainDI)$stats[5],0,col=alpha("blue",0.5),lwd=2)
 title(ylab="DI of training data", line=1.5,cex.lab=0.6)
-text(0.7,boxplot.stats(attributes(newdat_aoa)$TrainDI)$stats[5],
+text(0.7,boxplot.stats(newdat_aoa$parameters$trainDI)$stats[5],
      "AOA\nthreshold",pos=3,col=alpha("blue",0.5),cex=0.7)
 
 
@@ -402,7 +402,7 @@ lines(c(newdat[newpoint,"A"],trainDat_weights[whichIsMin,"A"]),
       c(newdat[newpoint,"B"],trainDat_weights[whichIsMin,"B"]))
 points(newdat[newpoint,"A"],newdat[newpoint,"B"],pch=4,col="red")
 text(newdat[newpoint,"A"],newdat[newpoint,"B"],
-     paste0("dist=",round(mindist_new,2),", \nDI=",round(mindist_new/attributes(newdat_aoa)$aoa_stats$Mean_train,2)),pos=2,cex=0.85)
+     paste0("dist=",round(mindist_new,2),", \nDI=",round(mindist_new/newdat_aoa$parameters$trainDist_avrgmean,2)),pos=2,cex=0.85)
 
 
 legend("topleft",pch=c(16,4),col=c("black","red"),legend=c("Training samples","A new data point"),bty="n")
@@ -638,7 +638,7 @@ legend("topleft",legend="a",bty="n")
 par(mar = c(6, 5.1, 0.7, 0.1))
 plot(AOA$DI~newdata$x,xlim=xlim,xlab = xlab, ylab = "DI",
      type="l",lwd=2)
-abline(attributes(AOA)$aoa_stats$threshold,0,lty=2)
+abline(newdat_aoa$parameters$threshold,0,lty=2)
 legend("topleft",legend="b",bty="n")
 dev.off()
 ```

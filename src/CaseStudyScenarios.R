@@ -209,7 +209,7 @@ for (setting in 1:nrow(settings)){
   resultsTable$model_RMSE_mcv[setting] <- model$results$RMSE[model$results$mtry==model$bestTune$mtry]
 
 
-  thres <- attributes(AOA)$aoa_stats$threshold
+  thres <- AOA$parameters$threshold
   predictionAOI <- prediction
   values(predictionAOI)[values(AOA$DI)>thres] <- NA
 

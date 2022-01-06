@@ -286,7 +286,7 @@ The area of applicability and the dissimilarity index are then calculated. First
 ```{r uncert,message=FALSE}
 
 #with variable weighting:
-AOA <- aoa(predictors,model=model,returnTrainDI = TRUE)
+AOA <- aoa(predictors,model=model)
 #without weighting:
 AOA_noWeights <- aoa(predictors,train=trainDat,variables = names(predictors))
 
@@ -366,7 +366,6 @@ paste0("RMSE (prediction,reference)= ",
        rmse(values(response),values(prediction)))
 
 #comparison prediction for the AOA~ref
-print(attributes(AOA)$aoa_stats)
 predictionAOI <- prediction
 values(predictionAOI)[values(AOA$AOA)==0] <- NA
 paste0("R^2 AOA= ",summary(lm(values(response)~values(predictionAOI)))$r.squared)
@@ -516,9 +515,9 @@ This can also be visualized via hexbins for the true error~DI relationship.
 ```{r hexbin, warning=FALSE, message=FALSE, echo=FALSE}
 dat_all <- data.frame("true_abs_error"=values(truediff),                    "type"=rep("DI",length(values(AOA$DI))), 
                       "value"=values(AOA$DI))
-th <- attributes(AOA)$aoa_stats$threshold
+th <- AOA$parameters$threshold
 
-dat2 <- data.frame("DI"=attributes(AOA)$TrainDI,
+dat2 <- data.frame("DI"=AOA$parameters$trainDI,
                    "error"=absError)
 
 
@@ -642,7 +641,7 @@ invisible(dev.off())
 stck <- stack(AOA_new$AOA$expected_RMSE,
               AOA_new_MCV$AOA$expected_RMSE)
 
-tmp <- AOA_new$AOA
+tmp <- AOA_new$AOA$AOA
 values(tmp)<- NA
 ovl <- stack(AOA_new$AOA$AOA,AOA_new_MCV$AOA$AOA)
 
